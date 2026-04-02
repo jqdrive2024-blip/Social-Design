@@ -638,6 +638,39 @@ select option{background:var(--surface2)}
   </div>
 </div>
 
+<!-- Modal editar publicació programada -->
+<div class="ov" id="ovEditSched" onclick="closeOvIf(event,'ovEditSched')">
+  <div class="modal">
+    <h3>✏️ Editar publicació programada</h3>
+    <p class="msub" id="editSchedSub">Modifica la data, hora o text de la publicació</p>
+    <div style="display:flex;gap:14px;align-items:flex-start;margin-bottom:20px;padding:12px;background:var(--surface2);border-radius:var(--rs)">
+      <div id="editSchedThumb" style="flex-shrink:0"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500;margin-bottom:4px" id="editSchedTitle"></div>
+        <span id="editSchedTypeBadge" class="tbadge" style="font-size:11px;padding:2px 8px"></span>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="fg"><label>Data i hora</label>
+        <div class="dtp">
+          <input type="date" id="editSchedDate">
+          <input type="time" id="editSchedTime">
+        </div>
+      </div>
+      <div class="fg"><label>Text / Caption</label>
+        <textarea rows="4" id="editSchedCaption"></textarea>
+      </div>
+      <div class="fg"><label>Hashtags</label>
+        <input type="text" id="editSchedHashtags">
+      </div>
+    </div>
+    <div class="mact">
+      <button class="bs" onclick="closeOv('ovEditSched')">Cancelar</button>
+      <button class="bp" onclick="saveEditSched()">✓ Guardar canvis</button>
+    </div>
+  </div>
+</div>
+
 <!-- Modal seleccionar imatge de la librería -->
 <div class="ov" id="ovLibPick" onclick="closeOvIf(event,'ovLibPick')">
   <div class="modal" style="width:680px;max-width:95vw">
@@ -675,6 +708,8 @@ const firebaseConfig = {
 };
 
 const SCRAPER_URL = 'https://jordiqterrassa.com/scraper.php';
+const PUBLISHER_URL = 'https://jordiqterrassa.com/publisher.php';
+const CRON_SECRET = 'social_design_2025_secret'; // Canvia-ho i posa el mateix al publisher.php
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
 let db, auth, currentUser, currentRestId;
@@ -706,7 +741,7 @@ function buildImagePrompt(prompt, isStory) {
     : 'square 1:1 composition, centered subject';
   return [
     prompt,
-    'professional food photography',
+    'professional creative design photography, NO food, NO restaurant',
     'appetizing and delicious looking',
     'restaurant quality plating',
     'shot with a high-end DSLR camera',
@@ -1245,12 +1280,13 @@ async function genProposals() {
   const iv = setInterval(() => { document.getElementById('lstep').textContent = steps[++si % steps.length]; }, 1800);
 
   const sysMsg = 'Ets un expert en comunicació digital per estudis de disseny gràfic i agències creatives. Respon SEMPRE amb JSON vàlid i res més.';
-  let userMsg = 'Genera 6 propostes de contingut per Instagram (3 post + 3 story):\n';
-  userMsg += 'Restaurant: ' + restName + '\nCuina: ' + cuisine + '\nDescripció: ' + desc + '\n';
+  let userMsg = 'Genera 6 propostes de contingut per Instagram (3 post + 3 story) per a un estudi o agència de disseny:\n';
+  userMsg += 'Estudi/Client: ' + restName + '\nEspecialitat: ' + cuisine + '\nDescripció: ' + desc + '\n';
   userMsg += 'Idioma: ' + lang + '\nHashtags: ' + tags + '\nCTA: ' + cta + '\n';
-  userMsg += 'Temàtica: ' + theme + '\nTo: ' + tone + '\n';
-  userMsg += '*** CONTEXT IMPORTANT (usa\'l als textos): ' + ctx + ' ***\n';
-  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🍽️","title":"Títol","caption":"Text 2-3 frases sense hashtags","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed food photo description for AI generation"}]}';
+  userMsg += 'Tipus de peça: ' + theme + '\nEstil comunicatiu: ' + tone + '\n';
+  userMsg += '*** BRIEFING (usa aquest context als textos, NO facis referència a menjar ni hosteleria): ' + ctx + ' ***\n';
+  userMsg += 'Contextos típics: identitat de marca, branding, tipografia, color, packaging, disseny web, UX, motion, il·lustració.\n';
+  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🎨","title":"Títol","caption":"Text 2-3 frases sense hashtags, sobre disseny gràfic","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed visual design / branding / creative work photo description for AI generation (NO food, NO restaurant)"}]}';
 
   try {
     document.getElementById('lstep').textContent = 'Generant textos amb GPT-4o-mini...';
@@ -1360,9 +1396,12 @@ async function confirmSched() {
   const date = document.getElementById('mpDate').value, time = document.getElementById('mpTime').value;
   if (!date) { toast('Selecciona una fecha'); return; }
   editP.caption = document.getElementById('mpCap').value;
-  scheduled.push({ ...editP, date, time });
+  // Afegim un schedId únic per identificar el post al servidor (necessari per edicions)
+  const newPost = { ...editP, date, time, schedId: 'sc_' + Date.now() + '_' + Math.random().toString(36).slice(2,7) };
+  scheduled.push(newPost);
   updBadge(); closeOv('ovPrev');
   await saveScheduled();
+  await savePendingPost(newPost); // Afegir al planificador automàtic
   toast('✓ Programada per al ' + fmtDate(date) + ' a les ' + time);
   renderCal();
 }
@@ -1389,10 +1428,15 @@ function applyBulk() {
   document.getElementById('bulkList').querySelectorAll('input[type="time"]').forEach(inp => inp.value=t);
 }
 async function confirmBulk() {
-  bulkItems.forEach(item => { if(item.date) scheduled.push({...item}); });
+  const itemsToSave = bulkItems.filter(item => item.date);
+  itemsToSave.forEach(item => scheduled.push({...item}));
   updBadge(); closeOv('ovBulk');
   await saveScheduled();
-  toast('✓ ' + bulkItems.length + ' publicaciones programadas');
+  // BUGFIX: Ara cridem savePendingPost per cada item del bulk (abans no es feia)
+  for (const item of itemsToSave) {
+    await savePendingPost(item);
+  }
+  toast('✓ ' + itemsToSave.length + ' publicaciones programadas');
   selIds.clear(); proposals.forEach(p => document.getElementById('card-'+p.id)?.classList.remove('sel'));
   updSelUI(); renderCal();
 }
@@ -1422,8 +1466,12 @@ function renderCal() {
 function renderSList() {
   const c=document.getElementById('schedItems');
   if (!scheduled.length){c.innerHTML=`<div class="empty"><span class="ei">📅</span><p>Sense publicacions encara.</p></div>`;return;}
-  const sorted=[...scheduled].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
-  c.innerHTML=sorted.map((s,i)=>`
+  // BUGFIX: Guardem l'índex ORIGINAL de l'array scheduled (no el de l'array ordenat).
+  // Abans s'usava l'índex del sorted[], però remSched/igPublishPost operen sobre scheduled[].
+  const sorted=[...scheduled].map((s,origIdx)=>({...s,_origIdx:origIdx})).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  c.innerHTML=sorted.map((s)=>{
+    const i=s._origIdx;
+    return `
     <div class="sitem ${s.type==='story'?'story':''}">
       <div style="display:flex;align-items:center;gap:10px">
         ${s.imageData?`<img src="${s.imageData}" class="sthumb" alt="">`:`<span style="font-size:22px">${s.emoji}</span>`}
@@ -1440,10 +1488,59 @@ function renderSList() {
             }
           </div>
         </div>
-        <button onclick="remSched(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">×</button>
+        <div style="display:flex;gap:4px;align-items:center">
+          <button onclick="openEditSched(${i})" style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:11px;padding:4px 10px;border-radius:var(--rs);font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">✏️</button>
+          <button onclick="remSched(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">×</button>
+        </div>
       </div>
-    </div>`).join('');
+    </div>`}).join('');
 }
+// =====================================================
+// EDITAR PUBLICACIÓ PROGRAMADA
+// =====================================================
+let editSchedIdx = null;
+
+function openEditSched(i) {
+  const s = scheduled[i];
+  if (!s) return;
+  editSchedIdx = i;
+  document.getElementById('editSchedTitle').textContent = s.title || 'Sense títol';
+  document.getElementById('editSchedSub').textContent = 'Modifica la publicació del ' + fmtDate(s.date) + ' a les ' + (s.time || '');
+  const badge = document.getElementById('editSchedTypeBadge');
+  badge.textContent = s.type === 'post' ? 'Post' : 'Story';
+  badge.className = 'tbadge ' + (s.type || 'post');
+  const thumb = document.getElementById('editSchedThumb');
+  thumb.innerHTML = s.imageData
+    ? `<img src="${s.imageData}" style="width:60px;height:60px;object-fit:cover;border-radius:var(--rs);display:block">`
+    : `<span style="font-size:32px;width:60px;height:60px;display:flex;align-items:center;justify-content:center">${s.emoji||'📸'}</span>`;
+  document.getElementById('editSchedDate').value = s.date || '';
+  document.getElementById('editSchedTime').value = s.time || '12:00';
+  document.getElementById('editSchedCaption').value = s.caption || '';
+  document.getElementById('editSchedHashtags').value = s.hashtags || '';
+  document.getElementById('ovEditSched').classList.add('open');
+}
+
+async function saveEditSched() {
+  if (editSchedIdx === null) return;
+  const date     = document.getElementById('editSchedDate').value;
+  const time     = document.getElementById('editSchedTime').value;
+  const caption  = document.getElementById('editSchedCaption').value;
+  const hashtags = document.getElementById('editSchedHashtags').value;
+  if (!date) { toast('Selecciona una data'); return; }
+
+  const oldSched = scheduled[editSchedIdx];
+  scheduled[editSchedIdx] = { ...oldSched, date, time, caption, hashtags };
+
+  closeOv('ovEditSched');
+  await saveScheduled();
+  renderCal();
+  toast('✓ Publicació actualitzada');
+
+  // Actualitzar també al planificador automàtic si estava penjada
+  await savePendingPost(scheduled[editSchedIdx]);
+  editSchedIdx = null;
+}
+
 async function remSched(i){
   const s = scheduled[i];
   // Eliminar imatge de IDB si existeix
@@ -1614,6 +1711,64 @@ async function saveCfg() {
   toast('✓ Perfil guardat a Firebase');
 }
 
+// ── Desar publicació al servidor per a publicació automàtica ─────────────────
+async function savePendingPost(post) {
+  const igToken  = localStorage.getItem('sc_ig_token') || '';
+  const igUserId = localStorage.getItem('sc_ig_user_id') || '';
+  if (!igToken || !igUserId) return; // Necessita compte Instagram connectat
+
+  let imageUrl = post.imageData || '';
+
+  // BUGFIX: Si la imatge és base64, primer la pugem al servidor per obtenir URL pública.
+  // Instagram no accepta base64, necessita una URL HTTP accessible públicament.
+  if (imageUrl.startsWith('data:')) {
+    try {
+      const upRes = await fetch(PUBLISHER_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: CRON_SECRET, action: 'upload_image', imageData: imageUrl })
+      });
+      const upData = await upRes.json();
+      if (upData.success && upData.url) {
+        imageUrl = upData.url;
+      } else {
+        console.warn('No s\'ha pogut pujar la imatge:', upData.error);
+        return;
+      }
+    } catch(e) {
+      console.warn('Error pujant imatge:', e.message);
+      return;
+    }
+  }
+
+  if (!imageUrl.startsWith('http')) return; // Sense URL pública no podem publicar
+
+  try {
+    // BUGFIX: Fem POST directe a PUBLISHER_URL (sense ?action=save).
+    // Abans es passava ?action=save però sense el secret a la URL,
+    // provocant un 403 perquè el check GET bloquejava tots els POST.
+    const res = await fetch(PUBLISHER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secret: CRON_SECRET,
+        post: {
+          ...post,
+          imageData: imageUrl, // URL pública (no base64)
+          igToken,
+          igUserId,
+          savedAt: new Date().toISOString()
+        }
+      })
+    });
+    const data = await res.json();
+    if (data.success) toast('✓ Afegit al planificador automàtic (⏰ es publicarà a l\'hora indicada)');
+    else console.warn('savePendingPost error:', data.error);
+  } catch(e) {
+    console.warn('savePendingPost error:', e.message);
+  }
+}
+
 async function saveScheduled() {
   if (!currentUser||!currentRestId) return;
   setSyncState('spin','Guardando...');
@@ -1657,6 +1812,18 @@ function showSec(n,btn) {
     const web = document.getElementById('cfgWeb')?.value||'';
     if (ig && document.getElementById('igUsername')) document.getElementById('igUsername').value = ig;
     if (web && document.getElementById('webUrl')) document.getElementById('webUrl').value = web;
+  }
+}
+
+async function checkPublisherStatus() {
+  const el = document.getElementById('publisherStatus');
+  if (el) el.textContent = 'Consultant...';
+  try {
+    const res = await fetch(PUBLISHER_URL + '?test=1&secret=' + CRON_SECRET);
+    const data = await res.json();
+    if (el) el.innerHTML = '✓ Publicador actiu · ' + data.pending + ' pendents · Última: ' + (data.log?.[0]?.ts || 'mai');
+  } catch(e) {
+    if (el) el.textContent = '✗ Error: ' + e.message;
   }
 }
 
