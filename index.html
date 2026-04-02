@@ -1,0 +1,2036 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Social Design</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script src="https://js.puter.com/v2/"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0d0d12;--surface:#131320;--surface2:#1a1a2e;--surface3:#21213a;
+  --border:#252540;--border2:#2e2e50;
+  --text:#f0ede8;--text2:#a09d98;--text3:#666;
+  --accent:#a78bfa;--accent2:#7c3aed;--accent-bg:rgba(167,139,250,0.08);
+  --green:#7ec98e;--blue:#7eb3e8;--red:#e87e7e;
+  --r:12px;--rs:8px;--rl:16px;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.6;min-height:100vh}
+.app{display:grid;grid-template-columns:260px 1fr;min-height:100vh}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column}
+.logo{padding:28px 24px 20px;border-bottom:1px solid var(--border)}
+.logo h1{font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--accent)}
+.logo p{font-size:11px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:1px}
+.nav{padding:16px 12px;flex:1}
+.ni{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--rs);cursor:pointer;font-size:14px;color:var(--text2);transition:all .15s;margin-bottom:2px;border:none;background:none;width:100%;text-align:left}
+.ni:hover{background:var(--surface2);color:var(--text)}
+.ni.active{background:var(--accent-bg);color:var(--accent)}
+.ni svg{width:18px;height:18px;flex-shrink:0;opacity:.7}
+.ni.active svg{opacity:1}
+.rsel-box{margin:12px;padding:14px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)}
+.rsel-box label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:8px}
+.rsel-box select{width:100%;background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:var(--rs);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer}
+.add-btn{display:block;width:100%;margin-top:8px;padding:8px;background:none;border:1px dashed var(--border2);color:var(--text3);border-radius:var(--rs);font-size:12px;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.add-btn:hover{border-color:var(--accent);color:var(--accent)}
+.sync{padding:10px 14px;font-size:11px;display:flex;align-items:center;gap:6px;border-top:1px solid var(--border)}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--text3)}
+.sync-dot.ok{background:var(--green)}
+.sync-dot.spin{background:var(--accent);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.main{display:flex;flex-direction:column;overflow:hidden}
+.content{flex:1;padding:32px;overflow-y:auto;display:flex;flex-direction:column}
+.gform{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:28px;margin-bottom:24px}
+.gform h3{font-size:16px;font-weight:500;margin-bottom:20px}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px}
+.fg{display:flex;flex-direction:column;gap:6px}
+.fg.full{grid-column:1/-1}
+label{font-size:12px;color:var(--text2);text-transform:uppercase;letter-spacing:.6px}
+input,select,textarea{background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:10px 14px;border-radius:var(--rs);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;transition:border .15s;resize:vertical}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+select option{background:var(--surface2)}
+.tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+.tag{padding:5px 12px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border2);color:var(--text2);background:none;transition:all .15s;font-family:'DM Sans',sans-serif}
+.tag.on{border-color:var(--accent);color:var(--accent);background:var(--accent-bg)}
+.bp{background:var(--accent);color:#0e0e0e;border:none;padding:12px 24px;border-radius:var(--rs);font-size:14px;font-weight:600;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.bp:hover{background:var(--accent2)}
+.bp:disabled{opacity:.4;cursor:not-allowed}
+.bs{background:var(--surface2);color:var(--text);border:1px solid var(--border2);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;transition:all .15s;font-family:'DM Sans',sans-serif}
+.bs:hover{border-color:var(--accent);color:var(--accent)}
+/* kbar */
+.kbar{display:flex;align-items:center;gap:10px;padding:10px 16px;background:var(--accent-bg);border:1px solid rgba(167,139,250,.2);border-radius:var(--rs);margin-bottom:20px}
+.kbar .lbl{font-size:12px;color:var(--accent);font-weight:500}
+.kst{font-size:11px;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.kst.on{background:rgba(126,201,142,.15);color:var(--green)}
+.kst.off{background:rgba(160,157,152,.1);color:var(--text3)}
+/* Proposals */
+.ph{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:20px}
+.pcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);overflow:hidden;transition:all .2s;position:relative}
+.pcard:hover{border-color:var(--border2);transform:translateY(-2px)}
+.pcard.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.sbadge{position:absolute;top:10px;right:10px;background:var(--accent);color:#0e0e0e;font-size:11px;font-weight:600;padding:3px 8px;border-radius:20px;display:none;z-index:2}
+.pcard.sel .sbadge{display:block}
+.cprev{aspect-ratio:1;background:var(--surface2);display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;cursor:pointer}
+.cprev.story{aspect-ratio:9/16;max-height:220px}
+.cprev img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+.iload{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px}
+.ispin{width:22px;height:22px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ilt{font-size:11px;color:var(--text3)}
+.img-src-tag{position:absolute;bottom:8px;left:8px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:2px 7px;border-radius:20px;z-index:3}
+.cbody{padding:16px}
+.tbadge{display:inline-flex;align-items:center;font-size:11px;padding:3px 10px;border-radius:20px;margin-bottom:10px}
+.tbadge.post{background:rgba(126,179,232,.15);color:var(--blue)}
+.tbadge.story{background:rgba(126,201,142,.15);color:var(--green)}
+.ccap{font-size:13px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.cact{display:flex;gap:6px;padding:10px 14px;border-top:1px solid var(--border);flex-wrap:wrap}
+.cact button{flex:1;min-width:0;padding:7px 6px;border-radius:var(--rs);font-size:11px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;white-space:nowrap}
+.bsel{background:var(--accent-bg);border:1px solid var(--accent);color:var(--accent)}
+.bsel:hover,.pcard.sel .bsel{background:var(--accent);color:#0e0e0e}
+.bedit{background:var(--surface2);border:1px solid var(--border2);color:var(--text2)}
+.bedit:hover{border-color:var(--border);color:var(--text)}
+.bgen{background:none;border:1px solid var(--border2);color:var(--text3)}
+.bgen:hover{border-color:var(--green);color:var(--green)}
+/* Calendar */
+.cal-area{display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start}
+.calbox{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:24px}
+.calhd{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+.calhd h3{font-size:16px;font-weight:500}
+.calnav{display:flex;gap:8px}
+.calnav button{background:var(--surface2);border:1px solid var(--border2);color:var(--text);width:30px;height:30px;border-radius:var(--rs);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.calnav button:hover{border-color:var(--accent);color:var(--accent)}
+.caldh{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:8px}
+.cdn{text-align:center;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:4px}
+.caldays{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cday{border-radius:var(--rs);display:flex;flex-direction:column;align-items:center;padding:6px 4px;font-size:12px;cursor:pointer;transition:all .15s;border:1px solid transparent;min-height:52px}
+.cday:hover{background:var(--surface2)}
+.cday.today{border-color:var(--accent);color:var(--accent)}
+.cday.om{opacity:.3}
+.cday.hp{background:var(--surface2)}
+.pdot{width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:2px}
+.pdot.story{background:var(--green)}
+.cdnum{font-weight:500;font-size:13px}
+.slist{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:20px}
+.slist h4{font-size:14px;font-weight:500;margin-bottom:16px;color:var(--text2)}
+.sitem{padding:12px;background:var(--surface2);border-radius:var(--rs);margin-bottom:10px;border-left:3px solid var(--accent)}
+.sitem.story{border-left-color:var(--green)}
+.sd8{font-size:11px;color:var(--text3);margin-bottom:3px}
+.stit{font-size:13px;font-weight:500;margin-bottom:2px}
+.styp{font-size:11px;color:var(--text2)}
+.sthumb{width:36px;height:36px;border-radius:6px;object-fit:cover;flex-shrink:0}
+/* Config */
+.cfggrid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.cfgcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:24px}
+.cfgcard h3{font-size:15px;font-weight:500;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+/* Loading */
+.lbox{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:40px;text-align:center;display:none}
+.lbox.vis{display:block}
+.lspin{width:36px;height:36px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 16px}
+.ltxt{font-size:14px;color:var(--text2)}
+.lstep{font-size:12px;color:var(--text3);margin-top:8px}
+/* Modals */
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:100;opacity:0;pointer-events:none;transition:opacity .2s}
+.ov.open{opacity:1;pointer-events:all}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--rl);width:540px;max-height:88vh;overflow-y:auto;padding:28px}
+.modal h3{font-size:18px;font-weight:500;margin-bottom:6px}
+.msub{font-size:13px;color:var(--text3);margin-bottom:24px}
+.mact{display:flex;gap:10px;margin-top:24px;justify-content:flex-end}
+.igprev{border-radius:var(--r);overflow:hidden;margin-bottom:20px;border:1px solid var(--border)}
+.ighd{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--surface2)}
+.igav{width:32px;height:32px;border-radius:50%;background:var(--accent-bg);border:2px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;overflow:hidden;flex-shrink:0}
+.igun{font-size:13px;font-weight:500}
+.igti{font-size:11px;color:var(--text3)}
+.igimg{aspect-ratio:1;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.igimg img{width:100%;height:100%;object-fit:cover}
+.igimg.story{aspect-ratio:9/16;max-height:320px}
+.igca{padding:12px 14px;background:var(--surface2)}
+.igcatxt{font-size:13px;line-height:1.5}
+.ightags{font-size:12px;color:var(--blue);margin-top:6px}
+.dtp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.hdiv{height:1px;background:var(--border);margin:18px 0}
+/* Backoffice / Libreria */
+.bo-tabs{display:flex;gap:4px;background:var(--surface2);padding:4px;border-radius:var(--r);margin-bottom:20px;width:fit-content}
+.bo-tab{padding:7px 16px;border-radius:var(--rs);font-size:13px;cursor:pointer;color:var(--text2);border:none;background:none;font-family:'DM Sans',sans-serif;transition:all .15s}
+.bo-tab.active{background:var(--surface);color:var(--text)}
+.bo-filters{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.bo-filters select,.bo-filters input{padding:7px 12px;font-size:13px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--rs);font-family:'DM Sans',sans-serif;outline:none}
+.bo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.bo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .15s}
+.bo-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.bo-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.bo-card img{width:100%;aspect-ratio:1;object-fit:cover;display:block}
+.bo-card.story img{aspect-ratio:9/16;max-height:200px}
+.bo-meta{padding:8px 10px}
+.bo-src{font-size:10px;color:var(--accent);font-weight:500;text-transform:uppercase;letter-spacing:.5px}
+.bo-caption{font-size:11px;color:var(--text3);margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.bo-act{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--border)}
+.bo-act button{flex:1;padding:5px;border-radius:var(--rs);font-size:10px;cursor:pointer;font-family:'DM Sans',sans-serif;background:none;border:1px solid var(--border2);color:var(--text3);transition:all .15s}
+.bo-act button:hover{border-color:var(--accent);color:var(--accent)}
+.bo-act .bo-use{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+.bo-empty{text-align:center;padding:60px 20px;color:var(--text3);grid-column:1/-1}
+.bo-gen-area{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:24px;margin-bottom:20px}
+/* Toast */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--accent);color:var(--accent);padding:12px 20px;border-radius:var(--rs);font-size:13px;transform:translateY(100px);opacity:0;transition:all .3s;z-index:200;max-width:340px}
+.toast.show{transform:translateY(0);opacity:1}
+/* Init */
+.init-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:300;gap:16px}
+.init-screen h1{font-family:'Space Grotesk',sans-serif;font-size:32px;color:var(--accent)}
+.init-screen p{color:var(--text3);font-size:14px}
+.init-spin{width:40px;height:40px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+.cbadge{background:var(--accent-bg);color:var(--accent);font-size:11px;padding:2px 7px;border-radius:20px;margin-left:6px}
+.empty{text-align:center;padding:40px 20px;color:var(--text3)}
+.empty .ei{font-size:32px;display:block;margin-bottom:12px;opacity:.4}
+.empty p{font-size:13px}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+/* ── MOBILE RESPONSIVE ─────────────────────────────────────── */
+@media(max-width:768px){
+  /* Layout */
+  .app{grid-template-columns:1fr;min-height:100vh}
+  .sidebar{display:none !important}
+  .main{padding-bottom:72px} /* espai per bottom nav */
+  .content{padding:16px}
+
+  /* Bottom navigation bar */
+  .mobile-nav{
+    display:flex;
+    position:fixed;bottom:0;left:0;right:0;
+    background:var(--surface);border-top:1px solid var(--border);
+    z-index:90;height:64px;
+    padding:0 4px env(safe-area-inset-bottom);
+  }
+  .mobile-nav button{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;background:none;border:none;color:var(--text3);cursor:pointer;
+    font-size:10px;font-family:'DM Sans',sans-serif;padding:6px 2px;
+    transition:color .15s;border-radius:var(--rs);
+  }
+  .mobile-nav button.active{color:var(--accent)}
+  .mobile-nav button svg{width:20px;height:20px;opacity:.7}
+  .mobile-nav button.active svg{opacity:1}
+
+  /* Mobile top bar */
+  .mobile-topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 16px 0;margin-bottom:4px;
+  }
+  .mobile-topbar h1{font-family:'Space Grotesk',sans-serif;font-size:18px;color:var(--accent)}
+  .mobile-topbar select{
+    background:var(--surface2);border:1px solid var(--border2);color:var(--text);
+    padding:6px 10px;border-radius:var(--rs);font-size:12px;
+    font-family:'DM Sans',sans-serif;outline:none;max-width:140px;
+  }
+
+  /* Drawer (sidebar en mobile) */
+  .mobile-drawer{
+    position:fixed;inset:0;z-index:200;
+    background:rgba(0,0,0,.7);opacity:0;pointer-events:none;transition:opacity .25s;
+  }
+  .mobile-drawer.open{opacity:1;pointer-events:all}
+  .mobile-drawer-inner{
+    position:absolute;left:0;top:0;bottom:0;width:280px;
+    background:var(--surface);transform:translateX(-100%);transition:transform .25s;
+    display:flex;flex-direction:column;overflow-y:auto;
+  }
+  .mobile-drawer.open .mobile-drawer-inner{transform:translateX(0)}
+
+  /* Grid adjustments */
+  .pgrid{grid-template-columns:1fr}
+  .bo-grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+  .cal-area{grid-template-columns:1fr}
+  .cfggrid{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr}
+  .cact{gap:4px}
+  .cact button{font-size:10px;padding:6px 4px}
+
+  /* Modals full width */
+  .modal{width:95vw !important;padding:20px;margin:0 auto}
+
+  /* Forms */
+  .gform{padding:16px}
+  .bo-gen-area{padding:14px}
+}
+
+/* Desktop: hide mobile elements */
+@media(min-width:769px){
+  .mobile-nav{display:none}
+  .mobile-topbar{display:none}
+  .mobile-drawer{display:none}
+  .cal-area,.cfggrid,.fgrid{grid-template-columns:unset}
+}
+</style>
+</head>
+<body>
+
+<div class="init-screen" id="initScreen">
+  <div class="init-spin"></div>
+  <h1>Social Design</h1>
+  <p id="initMsg">Connectant amb Firebase...</p>
+</div>
+
+<div class="app" id="mainApp" style="display:none">
+
+  <!-- ── MOBILE TOP BAR ── -->
+  <div class="mobile-topbar">
+    <h1>Social Design</h1>
+    <div style="display:flex;align-items:center;gap:8px">
+      <select id="restSelMobile" onchange="changeRestMobile()" style="background:var(--surface2);border:1px solid var(--border2);color:var(--text);padding:6px 10px;border-radius:var(--rs);font-size:12px;font-family:'DM Sans',sans-serif;outline:none;max-width:140px"></select>
+      <button onclick="openDrawer()" style="background:none;border:1px solid var(--border2);color:var(--text2);width:34px;height:34px;border-radius:var(--rs);cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center">☰</button>
+    </div>
+  </div>
+
+  <!-- ── MOBILE DRAWER ── -->
+  <div class="mobile-drawer" id="mobileDrawer" onclick="closeDrawerIf(event)">
+    <div class="mobile-drawer-inner">
+      <div class="logo" style="padding:20px 20px 16px">
+        <h1 style="font-family:'Space Grotesk',sans-serif;font-size:22px;color:var(--accent)">Social Design</h1>
+        <p style="font-size:11px;color:var(--text3);margin-top:2px;text-transform:uppercase;letter-spacing:1px">Gestió de disseny</p>
+      </div>
+      <div style="padding:0 12px 12px">
+        <label style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;display:block;margin-bottom:6px">Restaurante</label>
+        <select id="restSelDrawer" onchange="changeRestDrawer()" style="width:100%;background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:8px 10px;border-radius:var(--rs);font-size:13px;font-family:'DM Sans',sans-serif;outline:none"></select>
+        <button class="add-btn" onclick="addRest();closeDrawer()" style="margin-top:8px">+ Afegir client</button>
+      </div>
+      <nav style="padding:8px 12px;flex:1">
+        <button class="ni active" id="dniGen" onclick="showSec('generate',this);closeDrawer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Generar contingut
+        </button>
+        <button class="ni" id="dniCal" onclick="showSec('calendar',this);closeDrawer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Calendario
+          <span class="cbadge" id="calBadgeMob">0</span>
+        </button>
+        <button class="ni" id="dniLib" onclick="showSec('library',this);closeDrawer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Arxiu visual
+        </button>
+        <button class="ni" id="dniCfg" onclick="showSec('config',this);closeDrawer()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M21 12h-2M5 12H3M19.07 19.07l-1.41-1.41M5.34 5.34L3.93 3.93M12 21v-2M12 5V3"/></svg>Configuració
+        </button>
+      </nav>
+      <div style="padding:12px 16px;border-top:1px solid var(--border);font-size:11px;display:flex;align-items:center;gap:6px">
+        <div class="sync-dot" id="syncDotMob"></div>
+        <span id="syncTxtMob" style="color:var(--text3)">Desconectado</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM NAV ── -->
+  <nav class="mobile-nav" id="mobileBottomNav">
+    <button id="mbn-generate" class="active" onclick="showSec('generate',this);syncMobileNav('generate')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Generar
+    </button>
+    <button id="mbn-calendar" onclick="showSec('calendar',this);syncMobileNav('calendar')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Calendario
+    </button>
+    <button id="mbn-library" onclick="showSec('library',this);syncMobileNav('library')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Arxiu visual
+    </button>
+    <button id="mbn-config" onclick="showSec('config',this);syncMobileNav('config')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M21 12h-2M5 12H3M19.07 19.07l-1.41-1.41M5.34 5.34L3.93 3.93M12 21v-2M12 5V3"/></svg>Config
+    </button>
+  </nav>
+
+  <aside class="sidebar">
+    <div class="logo"><h1>Social Design</h1><p>Gestió de disseny</p></div>
+    <div class="rsel-box">
+      <label>Client / Estudi actiu</label>
+      <select id="restSel" onchange="changeRest()"></select>
+      <button class="add-btn" onclick="addRest()">+ Afegir client</button>
+    </div>
+    <nav class="nav">
+      <button class="ni active" onclick="showSec('generate',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg>Generar contingut
+      </button>
+      <button class="ni" onclick="showSec('calendar',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Calendario
+        <span class="cbadge" id="calBadge">0</span>
+      </button>
+      <button class="ni" onclick="showSec('library',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Arxiu visual
+      </button>
+      <button class="ni" onclick="showSec('config',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41M21 12h-2M5 12H3M19.07 19.07l-1.41-1.41M5.34 5.34L3.93 3.93M12 21v-2M12 5V3"/></svg>Configuració
+      </button>
+    </nav>
+    <div class="sync" id="syncBar">
+      <div class="sync-dot" id="syncDot"></div>
+      <span id="syncTxt" style="font-size:11px;color:var(--text3)">Desconectado</span>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- GENERAR -->
+    <div id="sec-generate" class="content">
+      <div class="kbar">
+        <span class="lbl">🤖 Textos: GPT-4o-mini · Imatges: Nanobanana (FLUX)</span>
+        <span class="kst on" id="nbSt">Actiu</span>
+      </div>
+      <div class="gform">
+        <h3>Nova generació de contingut</h3>
+        <div class="fgrid">
+          <div class="fg">
+            <label>Tipus de peça</label>
+            <select id="theme">
+              <option>Identitat corporativa</option><option>Campanya publicitària</option>
+              <option>Procés creatiu</option><option>Cas d'èxit de client</option>
+              <option>Tendències de disseny</option><option>Nou projecte o servei</option>
+              <option>Filosofia de l'estudi</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label>Estil visual</label>
+            <select id="tone">
+              <option>Proper i humà</option><option>Elegant i minimalista</option>
+              <option>Creatiu i disruptiu</option><option>Tècnic i professional</option>
+              <option>Emocional i narratiu</option>
+            </select>
+          </div>
+          <div class="fg full">
+            <label>Briefing (obligatori)</label>
+            <textarea id="ctx" rows="2" placeholder="Ex: Redisseny de marca per a startup fintech, campanya de llançament de nou servei, branding sostenible..."></textarea>
+          </div>
+        </div>
+        <div class="fg" style="margin-bottom:20px">
+          <label>Tipo de formato</label>
+          <div class="tags">
+            <button class="tag on" onclick="this.classList.toggle('on')">Post cuadrado</button>
+            <button class="tag on" onclick="this.classList.toggle('on')">Story vertical</button>
+            <button class="tag" onclick="this.classList.toggle('on')">Carrusel</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <button class="bp" onclick="genProposals()" id="genBtn">✦ Generar propostes</button>
+          <span style="font-size:12px;color:var(--text3)">Textos amb IA · Imatges sota demanda</span>
+        </div>
+      </div>
+      <div class="lbox" id="lbox">
+        <div class="lspin"></div>
+        <div class="ltxt">Creant propostes...</div>
+        <div class="lstep" id="lstep">Analizando el client</div>
+      </div>
+      <div id="propArea" style="display:none">
+        <div class="ph">
+          <div>
+            <strong id="propCount">6 propuestas</strong>
+            <span style="font-size:13px;color:var(--text3);margin-left:8px" id="selCount">0 seleccionadas</span>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="bs" onclick="selAll()">Seleccionar tot</button>
+            <button class="bp" onclick="schedSel()" id="schedBtn" disabled>Programar →</button>
+          </div>
+        </div>
+        <div class="pgrid" id="propGrid"></div>
+      </div>
+    </div>
+
+    <!-- CALENDARIO -->
+    <div id="sec-calendar" class="content" style="display:none">
+      <div class="cal-area">
+        <div class="calbox">
+          <div class="calhd">
+            <h3 id="calTitle"></h3>
+            <div class="calnav">
+              <button onclick="chMonth(-1)">&#8249;</button>
+              <button onclick="chMonth(1)">&#8250;</button>
+            </div>
+          </div>
+          <div class="caldh">
+            <div class="cdn">Lun</div><div class="cdn">Mar</div><div class="cdn">Mie</div>
+            <div class="cdn">Jue</div><div class="cdn">Vie</div><div class="cdn">Sab</div><div class="cdn">Dom</div>
+          </div>
+          <div class="caldays" id="calDays"></div>
+        </div>
+        <div class="slist">
+          <h4>Publicacions programades</h4>
+          <div id="schedItems"><div class="empty"><span class="ei">📅</span><p>Sense publicacions encara.</p></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- LIBRERÍA D'IMATGES -->
+    <div id="sec-library" class="content" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div>
+          <h2 style="font-size:18px;font-weight:500">Arxiu visual de imágenes</h2>
+          <p style="font-size:13px;color:var(--text3);margin-top:2px" id="libRestInfo">Imatges del client actiu</p>
+        </div>
+      </div>
+
+      <!-- Tabs: Instagram / Web / Generades -->
+      <div class="bo-tabs">
+        <button class="bo-tab active" onclick="switchLibTab('instagram',this)">📷 Xarxes socials</button>
+        <button class="bo-tab" onclick="switchLibTab('web',this)">🌐 Web</button>
+        <button class="bo-tab" onclick="switchLibTab('generated',this)">🤖 Generades IA</button>
+      </div>
+
+      <!-- Instagram tab -->
+      <div id="lib-instagram">
+        <div class="bo-gen-area">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Cargar imágenes del perfil de Instagram del client.</p>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <input type="text" id="igUsername" placeholder="@estudiodisseny" style="flex:1;max-width:300px" oninput="updateIgFromInput()">
+            <button class="bp" onclick="loadInstagramImages()" style="padding:10px 20px">Cargar imágenes</button>
+            <button class="bs" onclick="openIgProfile()" style="padding:10px 14px;font-size:13px" title="Abrir perfil en Instagram">↗ Ver perfil</button>
+          </div>
+          <div style="margin-top:10px;padding:10px 14px;background:rgba(232,201,126,.06);border:1px solid rgba(232,201,126,.15);border-radius:var(--rs)">
+            <p style="font-size:12px;color:var(--text3);line-height:1.6">
+              ⚠️ <strong style="color:var(--text2)">Instagram bloqueja scraping extern.</strong> Si no carreguen automàticament, tens dues opcions:<br>
+              1. <a id="igDirectLink" href="#" target="_blank" style="color:var(--accent)">Obre el perfil a Instagram →</a>, captura pantalla o descarrega les imatges, i puja-les manualment aquí baix.<br>
+              2. Puja directament des del teu dispositiu (JPG/PNG).
+            </p>
+          </div>
+        </div>
+        <div id="igGrid" class="bo-grid">
+          <div class="bo-empty"><p>Entra un usuari d'Instagram i clica "Cargar imágenes"</p></div>
+        </div>
+      </div>
+
+      <!-- Web tab -->
+      <div id="lib-web" style="display:none">
+        <div class="bo-gen-area">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Entra la URL de la web del client per extreure les seves imatges.</p>
+          <div style="display:flex;gap:10px;align-items:center">
+            <input type="url" id="webUrl" placeholder="https://meuEstudi.cat" style="flex:1;max-width:400px" oninput="updateWebFromInput()">
+            <button class="bp" onclick="loadWebImages()" style="padding:10px 20px">Extreure imatges</button>
+          </div>
+          <p style="font-size:11px;color:var(--text3);margin-top:8px">💡 Extreu imatges de la pàgina principal de la web</p>
+        </div>
+        <div id="webGrid" class="bo-grid">
+          <div class="bo-empty"><p>Entra una URL i clica "Extreure imatges"</p></div>
+        </div>
+      </div>
+
+      <!-- Generades tab -->
+      <div id="lib-generated" style="display:none">
+        <div class="bo-gen-area">
+          <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb Nanobanana</h3>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: plat de bravas crujients amb salsa especial de la casa, fotografia professional de menjar..."></textarea>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <select id="genImgRatio" style="padding:8px 12px;font-size:13px;width:160px">
+                <option value="1:1">Post (1:1)</option>
+                <option value="9:16">Story (9:16)</option>
+              </select>
+              <button class="bp" onclick="genLibraryImage()" id="genLibBtn">🎨 Generar imatge</button>
+              <span style="font-size:11px;color:var(--text3)" id="nbCredit"></span>
+            </div>
+          </div>
+        </div>
+        <div id="genGrid" class="bo-grid">
+          <div class="bo-empty"><p>Les imatges generades apareixeran aquí</p></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIGURACIÓ -->
+    <div id="sec-config" class="content" style="display:none">
+      <div class="cfggrid">
+        <div class="cfgcard">
+          <h3>Perfil del client / estudi</h3>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="fg"><label>Nombre</label><input type="text" id="cfgName"></div>
+            <div class="fg"><label>Especialitat / sector</label><input type="text" id="cfgCuisine"></div>
+            <div class="fg"><label>Descripció i veu de marca</label><textarea rows="3" id="cfgDesc"></textarea></div>
+            <div class="fg"><label>Web del client</label><input type="url" placeholder="https://meuEstudi.cat" id="cfgWeb"></div>
+            <div class="fg"><label>Instagram / Xarxes (@)</label><input type="text" placeholder="@estudiodisseny" id="cfgIG"></div>
+            <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar perfil</button>
+          </div>
+        </div>
+        <div class="cfgcard">
+          <h3>Preferències de contingut</h3>
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div class="fg"><label>Idioma</label>
+              <select id="cfgLang"><option>Español</option><option>Catalán</option><option>Inglés</option><option>Bilingüe ES/EN</option></select>
+            </div>
+            <div class="fg"><label>Frecuencia ideal</label>
+              <select id="cfgFreq"><option>Diaria</option><option>3 veces por semana</option><option>Semanal</option></select>
+            </div>
+            <div class="fg"><label>Hashtags fixos</label><textarea rows="2" id="cfgTags"></textarea></div>
+            <div class="fg"><label>CTA habitual</label><input type="text" id="cfgCTA"></div>
+            <div class="hdiv" style="margin:4px 0"></div>
+            <div class="fg">
+              <label>Google Gemini API Key</label>
+              <input type="password" id="cfgGeminiKey" placeholder="AIza..." autocomplete="off">
+              <span style="font-size:11px;color:var(--text3);margin-top:3px">Para Imagen 3 · Consíguela gratis en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a></span>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+              <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
+              <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar este restaurante</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Instagram Publicació automàtica -->
+        <div class="cfgcard" style="grid-column:1/-1">
+          <h3>📱 Publicació automàtica</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div class="fg">
+                <label>Access Token de Meta</label>
+                <input type="password" id="cfgIgToken" placeholder="EAAxxxxxxx..." autocomplete="off">
+                <span style="font-size:11px;color:var(--text3);margin-top:3px">
+                  Obtén el teu token a 
+                  <a href="https://developers.facebook.com/tools/explorer/" target="_blank" style="color:var(--accent)">Graph API Explorer →</a>
+                  Necessites permisos: <code style="font-size:10px;background:var(--surface3);padding:1px 5px;border-radius:3px">instagram_basic, instagram_content_publish, pages_read_engagement</code>
+                </span>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <button class="bp" id="igTestBtn" onclick="igTestConnect()" style="padding:10px 18px;font-size:13px">Verificar i connectar</button>
+                <button id="igDisconnectBtn" onclick="igDisconnect()" style="display:none;background:none;border:1px solid var(--border2);color:var(--text2);padding:9px 16px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:inherit">Desconnectar</button>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px;justify-content:center">
+              <div style="padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:500;margin-bottom:6px">Estat de la connexió</div>
+                <div style="font-size:13px" id="igConnectStatus">○ No connectat</div>
+                <div style="font-size:12px;color:var(--accent);margin-top:4px" id="igConnectName"></div>
+              </div>
+              <div style="padding:12px 14px;background:var(--accent-bg);border:1px solid rgba(167,139,250,.2);border-radius:var(--rs)">
+                <p style="font-size:11px;color:var(--text2);line-height:1.6">
+                  Un cop connectat, cada post del calendari tindrà un botó <strong>📱 Publicar</strong> per publicar directament a Instagram.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Modal preview -->
+<div class="ov" id="ovPrev" onclick="closeOvIf(event,'ovPrev')">
+  <div class="modal">
+    <h3 id="mpTitle">Previsualizar</h3>
+    <p class="msub" id="mpSub">Vista previa</p>
+    <div class="igprev" id="mpPrev"></div>
+    <div class="hdiv"></div>
+    <div class="fg" style="margin-bottom:14px"><label>Editar texto</label><textarea rows="4" id="mpCap"></textarea></div>
+    <div class="fg" style="margin-bottom:14px"><label>Programar</label><div class="dtp"><input type="date" id="mpDate"><input type="time" id="mpTime" value="12:00"></div></div>
+    <div class="mact">
+      <button class="bs" onclick="closeOv('ovPrev')">Cancelar</button>
+      <button class="bp" onclick="confirmSched()">✓ Confirmar programación</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal bulk -->
+<div class="ov" id="ovBulk" onclick="closeOvIf(event,'ovBulk')">
+  <div class="modal">
+    <h3>Programar seleccionadas</h3>
+    <p class="msub">Asigna fecha y hora</p>
+    <div id="bulkList" style="max-height:300px;overflow-y:auto;margin-bottom:20px"></div>
+    <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--surface2);border-radius:var(--rs);margin-bottom:16px">
+      <span style="font-size:12px;color:var(--text2);white-space:nowrap">Aplicar a todas:</span>
+      <input type="date" id="bdDate" style="flex:1">
+      <input type="time" id="bdTime" value="12:00" style="width:100px">
+      <button class="bs" onclick="applyBulk()" style="font-size:12px;padding:6px 12px">Aplicar</button>
+    </div>
+    <div class="mact">
+      <button class="bs" onclick="closeOv('ovBulk')">Cancelar</button>
+      <button class="bp" onclick="confirmBulk()">✓ Programar todas</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal seleccionar imatge de la librería -->
+<div class="ov" id="ovLibPick" onclick="closeOvIf(event,'ovLibPick')">
+  <div class="modal" style="width:680px;max-width:95vw">
+    <h3>Seleccionar imatge per a la proposta</h3>
+    <p class="msub">Tria una imatge de la librería o genera-ne una nova</p>
+    <div id="libPickGrid" class="bo-grid" style="max-height:400px;overflow-y:auto"></div>
+    <div class="mact"><button class="bs" onclick="closeOv('ovLibPick')">Cancelar</button></div>
+  </div>
+</div>
+
+<!-- Modal usar imatge de librería en proposta -->
+<div class="ov" id="ovUseLib" onclick="closeOvIf(event,'ovUseLib')">
+  <div class="modal" style="width:500px;max-width:95vw">
+    <h3>Usar imatge a una proposta</h3>
+    <p class="msub">Tria a quina proposta vols aplicar aquesta imatge</p>
+    <div id="useLibPrev" style="display:flex;gap:12px;align-items:center;padding:12px;background:var(--surface2);border-radius:var(--rs);margin-bottom:20px"></div>
+    <div id="useLibPropList" style="max-height:320px;overflow-y:auto"></div>
+    <div class="mact"><button class="bs" onclick="closeOv('ovUseLib')">Cancelar</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// =====================================================
+// CONFIG
+// =====================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyB1HefWkEqitPqHNE9G_slYDFzf9Z7jf9I",
+  authDomain: "social-design-55f11.firebaseapp.com",
+  projectId: "social-design-55f11",
+  storageBucket: "social-design-55f11.firebasestorage.app",
+  messagingSenderId: "511034535800",
+  appId: "1:511034535800:web:21fa1c72fd232eb597a28d"
+};
+
+const SCRAPER_URL = 'https://jordiqterrassa.com/scraper.php';
+const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+let db, auth, currentUser, currentRestId;
+let restaurants = [];
+let proposals = [], scheduled = [], bulkItems = [];
+let selIds = new Set();
+let calMon = new Date().getMonth(), calYr = new Date().getFullYear(), editP = null;
+let libImages = []; // imatges de la librería (IG + web + generades)
+let currentLibTab = 'instagram';
+let pickingForProp = null; // id proposta quan s'obre ovLibPick
+
+// ── Instagram Graph API ──────────────────────────────────────────────────────
+const IG_API_URL = 'https://jordiqterrassa.com/ig-api.php';
+let igToken = localStorage.getItem('sc_ig_token') || '';
+let igUserId = localStorage.getItem('sc_ig_user_id') || '';
+let igAccountName = localStorage.getItem('sc_ig_account_name') || '';
+
+// =====================================================
+// GENERACIÓ D'IMATGES — Gemini Imagen 3 + Puter fallback
+// =====================================================
+function getGeminiKey() {
+  return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
+}
+
+// Prompt engineering para Gemini Imagen 3 — mucho más detallado
+function buildImagePrompt(prompt, isStory) {
+  const orient = isStory
+    ? 'vertical portrait 9:16 composition, tall format'
+    : 'square 1:1 composition, centered subject';
+  return [
+    prompt,
+    'professional food photography',
+    'appetizing and delicious looking',
+    'restaurant quality plating',
+    'shot with a high-end DSLR camera',
+    'shallow depth of field',
+    'warm natural side lighting',
+    'rich vibrant colors',
+    'photorealistic, ultra detailed, 8k resolution',
+    orient,
+    'clean background, editorial style'
+  ].join(', ');
+}
+
+// Modelos Gemini con imagen, en orden de preferencia (gratuïts)
+const GEMINI_IMG_MODELS = [
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash-preview-04-17',
+];
+
+async function callGeminiImgModel(model, fullPrompt, apiKey) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+      })
+    }
+  );
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`${model} HTTP ${res.status}: ${errText.slice(0, 100)}`);
+  }
+  const data = await res.json();
+  const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+  if (!part?.inlineData?.data) throw new Error(`${model}: sense imatge a la resposta`);
+  return 'data:' + (part.inlineData.mimeType || 'image/jpeg') + ';base64,' + part.inlineData.data;
+}
+
+async function generateWithGemini(prompt, isStory) {
+  const apiKey = getGeminiKey();
+  if (!apiKey) throw new Error('No Gemini key');
+  const fullPrompt = buildImagePrompt(prompt, isStory);
+
+  // Provar cada model fins trobar-ne un que funcioni
+  let lastErr = null;
+  for (const model of GEMINI_IMG_MODELS) {
+    try {
+      console.log('Provant Gemini model:', model);
+      const url = await callGeminiImgModel(model, fullPrompt, apiKey);
+      console.log('✅ Gemini OK amb:', model);
+      return url;
+    } catch(e) {
+      console.warn(`❌ ${model}:`, e.message);
+      lastErr = e;
+      // Si és un error d'autenticació (401/403) no té sentit provar més
+      if (e.message.includes('401') || e.message.includes('403')) break;
+    }
+  }
+  throw new Error('Tots els models Gemini han fallat: ' + (lastErr?.message || '?'));
+}
+
+async function generateImageNb(prompt, isStory) {
+  const geminiKey = getGeminiKey();
+
+  // Intentar Gemini/Imagen 3 si hay key
+  if (geminiKey) {
+    try {
+      const url = await generateWithGemini(prompt, isStory);
+      return url;
+    } catch(e) {
+      console.warn('Gemini falló, usando Puter FLUX como fallback:', e.message);
+      toast('⚠️ Gemini: ' + e.message.slice(0,50) + ' · Usant Puter...');
+    }
+  }
+
+  // Fallback: Puter FLUX.1-schnell (gratuït)
+  const fullPrompt = buildImagePrompt(prompt, isStory);
+  const size = isStory ? '1024x1792' : '1024x1024';
+  const imgEl = await puter.ai.txt2img(fullPrompt, {
+    model: 'black-forest-labs/flux.1-schnell',
+    size
+  });
+  return imgEl.src;
+}
+
+function injectImg(cardId, url) {
+  const box = document.getElementById('cprev-' + cardId);
+  if (!box) return;
+  // Eliminar spinner i botons anteriors
+  const existingImg = box.querySelector('img');
+  if (existingImg) existingImg.remove();
+  const loader = box.querySelector('.iload');
+
+  const img = document.createElement('img');
+  img.style.cssText = 'width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .5s;position:absolute;inset:0;z-index:1';
+  img.onload = () => {
+    img.style.opacity = '1';
+    if (loader) loader.style.display = 'none';
+  };
+  img.onerror = () => {
+    img.remove();
+    if (loader) loader.innerHTML = '<span style="font-size:20px">⚠️</span><span class="ilt">Error</span>';
+  };
+  box.appendChild(img);
+  img.src = url;
+}
+
+// Generar imatge per una proposta concreta (sota demanda)
+async function genImageForProp(propId) {
+  const p = proposals.find(x => x.id === propId);
+  if (!p) return;
+  const box = document.getElementById('cprev-' + propId);
+  const btn = document.getElementById('imgbtn-' + propId);
+  if (box) {
+    box.innerHTML = '<div class="iload"><div class="ispin"></div><span class="ilt">Generant...</span></div>';
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const ctx = document.getElementById('ctx')?.value?.trim() || '';
+    const url = await generateImageNb(p.imagePrompt || p.title + (ctx ? ' ' + ctx : ''), p.type === 'story');
+    proposals[proposals.indexOf(p)].imageData = url;
+    // Afegir a la librería i persistir
+    const imgData = { url, source: 'generated', prompt: p.imagePrompt || p.title, type: p.type, restId: currentRestId };
+    addToLibrary(imgData);
+    idbSaveImage(imgData);
+    injectImg(propId, url);
+    // Eliminar botó generar
+    const newBtn = document.getElementById('imgbtn-' + propId);
+    if (newBtn) newBtn.remove();
+    const srcTag = document.getElementById('srctag-' + propId);
+    if (srcTag) { srcTag.textContent = '🤖 Nanobanana'; srcTag.style.display = 'block'; }
+  } catch(e) {
+    console.error('Gen img error:', e);
+    const b = document.getElementById('cprev-' + propId);
+    if (b) b.innerHTML = '<div class="iload"><span style="font-size:18px">⚠️</span><span class="ilt">' + (e.message||'Error').slice(0,50) + '</span></div>';
+    const btn2 = document.getElementById('imgbtn-' + propId);
+    if (btn2) { btn2.disabled = false; btn2.textContent = '🤖 Generar'; }
+  }
+}
+
+// Obrir librería per seleccionar imatge per una proposta
+function pickImageForProp(propId) {
+  pickingForProp = propId;
+  try { renderLibPickGrid(); } catch(e) { console.error('renderLibPickGrid error:', e); }
+  document.getElementById('ovLibPick').classList.add('open');
+}
+
+function renderLibPickGrid() {
+  const grid = document.getElementById('libPickGrid');
+  if (!grid) return;
+
+  if (!libImages.length) {
+    grid.innerHTML = '<div class="bo-empty" style="grid-column:1/-1"><p style="font-size:13px">No hi ha imatges a la librería.<br><br>Ves a <strong>Arxiu visual → Instagram</strong> per carregar imatges del perfil,<br>o a <strong>Arxiu visual → Generades IA</strong> per crear-ne de noves.</p></div>';
+    return;
+  }
+
+  // Instagram first, then web, then generated
+  const sorted = [...libImages].sort((a,b) => {
+    const order = {instagram:0, web:1, generated:2};
+    return (order[a.source]??3) - (order[b.source]??3);
+  });
+
+  grid.innerHTML = sorted.map((img) => {
+    const globalIdx = libImages.indexOf(img);
+    const displayUrl = getDisplayUrl(img);
+    const srcLabel = img.source==='instagram' ? '📷 IG' : img.source==='web' ? '🌐 Web' : '🤖 IA';
+    return `
+    <div class="bo-card" onclick="applyLibImage(${globalIdx})" style="cursor:pointer" title="Aplicar a la proposta">
+      <div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:0">
+          <div class="ispin"></div>
+        </div>
+        <img src="${displayUrl}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
+          onload="this.previousElementSibling.style.display='none'"
+          onerror="this.previousElementSibling.innerHTML='<span style=\\"font-size:20px\\">⚠️</span>';this.style.display='none'">
+        <div style="position:absolute;top:6px;left:6px;background:rgba(0,0,0,.65);color:#fff;font-size:10px;padding:2px 7px;border-radius:20px;z-index:2">${srcLabel}</div>
+      </div>
+      <div class="bo-meta">
+        <div class="bo-caption" style="font-size:11px;color:var(--text3)">${(img.caption||img.prompt||'').slice(0,60)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function applyLibImage(imgIdx) {
+  if (!pickingForProp) return;
+  const img = libImages[imgIdx];
+  if (!img) { pickingForProp = null; return; }
+  const displayUrl = getDisplayUrl(img);
+  const pIdx = proposals.findIndex(x => x.id === pickingForProp);
+  if (pIdx > -1) {
+    proposals[pIdx].imageData = displayUrl;
+    proposals[pIdx].imageSource = img.source;
+    injectImg(pickingForProp, displayUrl);
+    const btn = document.getElementById('imgbtn-' + pickingForProp);
+    if (btn) btn.remove();
+    const srcTag = document.getElementById('srctag-' + pickingForProp);
+    if (srcTag) {
+      srcTag.textContent = img.source==='instagram' ? '📷 IG' : img.source==='web' ? '🌐 Web' : '🤖 IA';
+      srcTag.style.display = 'block';
+    }
+  }
+  pickingForProp = null;
+  closeOv('ovLibPick');
+  closeOv('ovUseLib');
+  toast('✓ Imatge aplicada a la proposta');
+}
+
+// =====================================================
+// LIBRERÍA — INSTAGRAM
+// =====================================================
+function updateWebFromInput() {}
+
+async function loadInstagramImages() {
+  const igRaw = document.getElementById('igUsername').value.trim();
+  const ig = igRaw.replace('@','').replace('https://www.instagram.com/','').replace(/[/\\]/g,'').trim();
+  if (!ig) { toast("Entra un nom d'usuari d'Instagram"); return; }
+  const grid = document.getElementById('igGrid');
+  grid.innerHTML = '<div class="bo-empty"><div class="ispin" style="margin:0 auto 12px"></div><p>Carregant via scraper.php...</p></div>';
+  try {
+    const res = await fetch(SCRAPER_URL + '?action=instagram&username=' + encodeURIComponent(ig));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.success || !data.images?.length) {
+      grid.innerHTML = '<div class="bo-empty" style="grid-column:1/-1"><p style="font-size:13px;margin-bottom:12px">' +
+        (data.error || "No s'han pogut obtenir les imatges.") + '<br>' +
+        (data.profileUrl ? '<a href="' + data.profileUrl + '" target="_blank" style="color:var(--accent)">Obre @' + ig + ' a Instagram →</a><br><br>' : '') +
+        'Puja les imatges manualment:</p>' + uploadZoneHtml('instagram') + '</div>';
+      return;
+    }
+    const images = data.images.map(img => ({...img, source:'instagram', type:'post', restId: currentRestId}));
+    images.forEach(img => addToLibrary(img));
+    renderIgGrid(images);
+    toast('✓ ' + images.length + " imatges carregades d'Instagram");
+  } catch(e) {
+    grid.innerHTML = '<div class="bo-empty" style="grid-column:1/-1"><p style="font-size:13px;margin-bottom:12px">Error: ' + e.message + '<br>Puja les imatges manualment:</p>' + uploadZoneHtml('instagram') + '</div>';
+  }
+}
+
+async function loadWebImages() {
+  const url = document.getElementById('webUrl').value.trim();
+  if (!url || !url.startsWith('http')) { toast('Entra una URL vàlida (https://...)'); return; }
+  const grid = document.getElementById('webGrid');
+  grid.innerHTML = '<div class="bo-empty"><div class="ispin" style="margin:0 auto 12px"></div><p>Extraient imatges via scraper.php...</p></div>';
+  try {
+    const res = await fetch(SCRAPER_URL + '?action=web&url=' + encodeURIComponent(url));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if (!data.success || !data.images?.length) {
+      grid.innerHTML = '<div class="bo-empty" style="grid-column:1/-1"><p style="font-size:13px;margin-bottom:12px">' +
+        (data.error || 'No s\'han trobat imatges.') + '<br>Puja-les manualment:</p>' + uploadZoneHtml('web') + '</div>';
+      return;
+    }
+    const images = data.images.map(img => ({...img, source:'web', type:'post', restId: currentRestId}));
+    images.forEach(img => addToLibrary(img));
+    renderWebGrid(images);
+    toast('✓ ' + data.images.length + ' imatges trobades');
+  } catch(e) {
+    grid.innerHTML = '<div class="bo-empty" style="grid-column:1/-1"><p style="font-size:13px;margin-bottom:12px">Error: ' + e.message + '</p>' + uploadZoneHtml('web') + '</div>';
+  }
+}
+
+function igProxyUrl(url) {
+  // Les imatges del CDN d'Instagram requereixen Referer correcte.
+  // Les servim via PHP per evitar bloquejos CORS.
+  return SCRAPER_URL + '?action=proxy&url=' + encodeURIComponent(url);
+}
+
+// Retorna la URL correcta per mostrar qualsevol imatge de la librería:
+// - Instagram  → proxy PHP (evita el bloqueig CORS del CDN)
+// - data:      → directe (imatge base64 en memòria)
+// - qualsevol  → URL directa
+function getDisplayUrl(img) {
+  if (!img) return '';
+  const url = img.url || '';
+  if (url.startsWith('data:')) return url;              // base64: directe
+  if (img.source === 'instagram') return igProxyUrl(url); // Instagram: proxy
+  return url;                                             // web/generated: directe
+}
+
+function renderIgGrid(images) {
+  const grid = document.getElementById('igGrid');
+  if (!images.length) {
+    grid.innerHTML = '<div class="bo-empty"><p>No s\u0027han trobat imatges.</p></div>';
+    return;
+  }
+  grid.innerHTML = images.map((img) => {
+    const idx = libImages.indexOf(img);
+    // Si la URL ja és base64 (del PHP) la usem directament, sinó proxiem
+    const src = img.url.startsWith('data:') ? img.url : igProxyUrl(img.url);
+    return `
+    <div class="bo-card" onclick="pickOrUseLibImg(${idx})">
+      <div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+          <div class="ispin"></div>
+        </div>
+        <img src="${src}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
+          onload="this.previousElementSibling.style.display='none'"
+          onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
+      </div>
+      <div class="bo-meta"><div class="bo-src">📷 Xarxes socials</div><div class="bo-caption">${img.caption?.slice(0,60)||''}</div></div>
+      <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
+    </div>`;
+  }).join('');
+}
+
+function renderWebGrid(images) {
+  const grid = document.getElementById('webGrid');
+  grid.innerHTML = images.map((img) => {
+    const idx = libImages.indexOf(img);
+    return `
+    <div class="bo-card" onclick="pickOrUseLibImg(${idx})">
+      <div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center">
+          <div class="ispin"></div>
+        </div>
+        <img src="${img.url}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
+          onload="this.previousElementSibling.style.display='none'"
+          onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
+      </div>
+      <div class="bo-meta"><div class="bo-src">🌐 Web</div></div>
+      <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
+    </div>`;
+  }).join('');
+}
+
+function renderGenGrid() {
+  const generated = libImages.filter(i => i.source === 'generated' && i.restId === currentRestId);
+  const grid = document.getElementById('genGrid');
+  if (!generated.length) {
+    grid.innerHTML = '<div class="bo-empty"><p>Les imatges generades apareixeran aquí</p></div>';
+    return;
+  }
+  grid.innerHTML = generated.map((img) => {
+    const idx = libImages.indexOf(img);
+    return `
+    <div class="bo-card" id="gencard-${img.idbId||idx}">
+      <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'">
+      <div class="bo-meta"><div class="bo-src">🎨 IA Generada</div><div class="bo-caption">${img.prompt||''}</div></div>
+      <div class="bo-act">
+        <button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button>
+        <button onclick="event.stopPropagation();downloadImg('${img.url}')">↓</button>
+        <button style="color:var(--red)" onclick="event.stopPropagation();deleteGenImage(${img.idbId||'null'},${idx})" title="Eliminar">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function deleteGenImage(idbId, libIdx) {
+  if (!confirm('¿Eliminar esta imagen de la librería?')) return;
+  // Eliminar de IndexedDB
+  if (idbId) await idbDeleteImage(idbId);
+  // Eliminar de libImages
+  libImages.splice(libIdx, 1);
+  renderGenGrid();
+  toast('✓ Imagen eliminada de la librería');
+}
+
+function downloadImg(url) {
+  const a = document.createElement('a'); a.href = url; a.download = 'socialchef_' + Date.now() + '.jpg';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// HTML helper per zona d'upload
+function uploadZoneHtml(source) {
+  const id = source === 'instagram' ? 'igFileInput' : 'webFileInput';
+  return `<div style="border:2px dashed var(--border2);border-radius:var(--r);padding:24px;cursor:pointer;transition:border .15s;text-align:center"
+    ondragover="event.preventDefault();this.style.borderColor='var(--accent)'"
+    ondragleave="this.style.borderColor='var(--border2)'"
+    ondrop="handleImgDrop(event,'${source}')"
+    onclick="document.getElementById('${id}').click()">
+    <p style="font-size:13px;color:var(--text3)">📁 Arrossega imatges aquí o clica per seleccionar</p>
+    <p style="font-size:11px;color:var(--text3);margin-top:4px">JPG, PNG, WebP</p>
+  </div>
+  <input type="file" id="${id}" multiple accept="image/*" style="display:none" onchange="handleFileInput(event,'${source}')">`;
+}
+
+// Upload manual de fitxers
+function handleImgDrop(e, source) {
+  e.preventDefault();
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  processFiles(files, source);
+}
+function handleFileInput(e, source) {
+  const files = Array.from(e.target.files);
+  processFiles(files, source);
+}
+function processFiles(files, source) {
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = { url: e.target.result, source, caption: file.name, type: 'post', restId: currentRestId };
+      addToLibrary(img);
+      if (source === 'instagram') renderIgGrid(libImages.filter(i => i.source === 'instagram' && i.restId === currentRestId));
+      else renderWebGrid(libImages.filter(i => i.source === 'web' && i.restId === currentRestId));
+    };
+    reader.readAsDataURL(file);
+  });
+  toast('✓ ' + files.length + ' imatges afegides');
+}
+
+// Afegir imatge a la librería (deduplicant per URL)
+function addToLibrary(img) {
+  // Asegurar que tiene restId
+  if (!img.restId) img.restId = currentRestId;
+  
+  if (!libImages.find(i => i.url === img.url)) {
+    libImages.push(img);
+  }
+}
+
+function useLibImgNow(imgIdx) {
+  toast('Selecciona una proposta per aplicar aquesta imatge');
+  // Destacar totes les targetes per indicar que es pot clicar
+}
+
+function pickOrUseLibImg(imgIdx) {
+  if (pickingForProp) { applyLibImage(imgIdx); return; }
+  // Si no estem en mode pick, copiar la URL
+  const img = libImages[imgIdx];
+  if (img) { navigator.clipboard.writeText(img.url).then(() => toast('✓ URL copiada')); }
+}
+
+let pendingLibIdx = null;
+
+function useLibImage(imgIdx) {
+  const img = libImages[imgIdx];
+  if (!img) return;
+  pickingForProp = null;  // reset so we don't accidentally apply to stale prop
+  // Mostrar overlay per triar proposta
+  pendingLibIdx = imgIdx;
+  const ov = document.getElementById('ovUseLib');
+  const prev = document.getElementById('useLibPrev');
+  if (prev) {
+    const du = getDisplayUrl(img);
+    prev.innerHTML = `<img src="${du}" style="width:72px;height:72px;object-fit:cover;border-radius:var(--rs);flex-shrink:0">
+      <div style="min-width:0"><div style="font-size:13px;font-weight:500;margin-bottom:4px">${img.source==='instagram'?'📷 Xarxes socials':img.source==='web'?'🌐 Web':'🎨 IA'}</div>
+      <div style="font-size:11px;color:var(--text3);word-break:break-word">${(img.caption||img.prompt||'').slice(0,100)}</div></div>`;
+  }
+  renderUseLibProposals();
+  if (ov) ov.classList.add('open');
+}
+
+function renderUseLibProposals() {
+  const list = document.getElementById('useLibPropList');
+  if (!list) return;
+  if (!proposals.length) {
+    list.innerHTML = '<p style="font-size:13px;color:var(--text3);padding:16px 0">Primer genera propostes des de la secció "Generar contingut".</p>';
+    return;
+  }
+  list.innerHTML = proposals.map(p => `
+    <div onclick="applyPendingToProposal('${p.id}')" style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--surface2);border-radius:var(--rs);cursor:pointer;margin-bottom:6px;transition:border .15s;border:1px solid var(--border)" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      ${p.imageData ? `<img src="${p.imageData}" style="width:44px;height:44px;object-fit:cover;border-radius:6px;flex-shrink:0">` : `<div style="width:44px;height:44px;background:var(--surface3);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">${p.emoji}</div>`}
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:500">${p.title}</div>
+        <span class="tbadge ${p.type}" style="font-size:10px;padding:1px 6px">${p.type}</span>
+      </div>
+      <span style="font-size:18px;color:var(--accent)">→</span>
+    </div>`).join('');
+}
+
+function applyPendingToProposal(propId) {
+  if (pendingLibIdx === null) return;
+  pickingForProp = propId;
+  applyLibImage(pendingLibIdx);
+  pendingLibIdx = null;
+  closeOv('ovUseLib');
+}
+
+// Generar imatge des de la librería
+async function genLibraryImage() {
+  const prompt = document.getElementById('genImgPrompt').value.trim();
+  if (!prompt) { toast("Descriu la imatge que vols generar"); return; }
+  const ratio = document.getElementById('genImgRatio').value;
+  const isStory = ratio === '9:16';
+  const btn = document.getElementById('genLibBtn');
+  const geminiKey = getGeminiKey();
+  btn.disabled = true;
+  btn.textContent = geminiKey ? '⏳ Generant amb Gemini...' : '⏳ Generant amb Puter...';
+  try {
+    const url = await generateImageNb(prompt, isStory);
+    const imgData = { url, source: 'generated', prompt, type: isStory ? 'story' : 'post', restId: currentRestId };
+    addToLibrary(imgData);
+    // Guardar en IndexedDB para persistencia
+    await idbSaveImage(imgData);
+    // Actualitzar idbId de l'últim item
+    const savedItems = await idbLoadImages(currentRestId);
+    const last = savedItems[savedItems.length - 1];
+    if (last) { const li = libImages.find(i => i.url === url); if (li) li.idbId = last.id; }
+    renderGenGrid();
+    toast('✓ Imatge generada i guardada a la librería!');
+  } catch(e) {
+    toast('❌ Error: ' + (e.message || 'Error generant').slice(0,80));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🎨 Generar imatge';
+  }
+}
+
+function switchLibTab(tab, btn) {
+  currentLibTab = tab;
+  document.querySelectorAll('.bo-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('lib-instagram').style.display = tab === 'instagram' ? 'block' : 'none';
+  document.getElementById('lib-web').style.display = tab === 'web' ? 'block' : 'none';
+  document.getElementById('lib-generated').style.display = tab === 'generated' ? 'block' : 'none';
+  if (tab === 'generated') renderGenGrid();
+}
+
+// =====================================================
+// GENERAR PROPOSTES
+// =====================================================
+async function genProposals() {
+  const ctx = document.getElementById('ctx').value.trim();
+  if (!ctx) { toast('⚠ Escriu el context (plat, esdeveniment...)'); document.getElementById('ctx').focus(); return; }
+
+  document.getElementById('genBtn').disabled = true;
+  document.getElementById('propArea').style.display = 'none';
+  document.getElementById('lbox').classList.add('vis');
+  selIds.clear();
+
+  const theme    = document.getElementById('theme').value;
+  const tone     = document.getElementById('tone').value;
+  const restName = restaurants.find(r => r.id === currentRestId)?.name || document.getElementById('cfgName').value;
+  const cuisine  = document.getElementById('cfgCuisine').value;
+  const desc     = document.getElementById('cfgDesc').value;
+  const tags     = document.getElementById('cfgTags').value;
+  const cta      = document.getElementById('cfgCTA').value;
+  const lang     = document.getElementById('cfgLang').value;
+
+  const steps = ['Analitzant el restaurant...','Generant idees creatives...','Redactant textos...','Preparant propostes...'];
+  let si = 0;
+  const iv = setInterval(() => { document.getElementById('lstep').textContent = steps[++si % steps.length]; }, 1800);
+
+  const sysMsg = 'Ets un expert en comunicació digital per estudis de disseny gràfic i agències creatives. Respon SEMPRE amb JSON vàlid i res més.';
+  let userMsg = 'Genera 6 propostes de contingut per Instagram (3 post + 3 story):\n';
+  userMsg += 'Restaurant: ' + restName + '\nCuina: ' + cuisine + '\nDescripció: ' + desc + '\n';
+  userMsg += 'Idioma: ' + lang + '\nHashtags: ' + tags + '\nCTA: ' + cta + '\n';
+  userMsg += 'Temàtica: ' + theme + '\nTo: ' + tone + '\n';
+  userMsg += '*** CONTEXT IMPORTANT (usa\'l als textos): ' + ctx + ' ***\n';
+  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🍽️","title":"Títol","caption":"Text 2-3 frases sense hashtags","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed food photo description for AI generation"}]}';
+
+  try {
+    document.getElementById('lstep').textContent = 'Generant textos amb GPT-4o-mini...';
+    const resp = await puter.ai.chat(
+      [{ role: 'system', content: sysMsg }, { role: 'user', content: userMsg }],
+      { model: 'gpt-4o-mini' }
+    );
+    let raw = typeof resp === 'string' ? resp : resp?.message?.content || JSON.stringify(resp);
+    raw = raw.replace(/```json|```/gi,'').trim();
+    const j0 = raw.indexOf('{'), j1 = raw.lastIndexOf('}');
+    if (j0 === -1) throw new Error('No JSON');
+    proposals = JSON.parse(raw.slice(j0, j1+1)).proposals;
+    if (!proposals?.length) throw new Error('Buit');
+  } catch(e) {
+    console.error('IA error:', e);
+    proposals = fallback(restName, ctx);
+    toast('⚠ IA no disponible · Contingut de mostra');
+  }
+
+  clearInterval(iv);
+  document.getElementById('lbox').classList.remove('vis');
+  document.getElementById('genBtn').disabled = false;
+  renderProps();
+  toast('✓ ' + proposals.length + ' propostes generades · Clica 🤖 per generar imatge o 🖼 per triar de la librería');
+}
+
+function fallback(name, ctx) {
+  const c = ctx || 'plat especial';
+  return [
+    {id:'p1',type:'post',emoji:'🍽️',title:c+' especial',caption:`Descobreix el nostre ${c} a ${name}. Ingredients frescos i sabor únic. ${document.getElementById('cfgCTA')?.value||'Reserva!'}`,hashtags:'#disseny #branding',imagePrompt:`Professional food photography of ${c}, natural light, rustic table`},
+    {id:'p2',type:'story',emoji:'👨‍🍳',title:'Preparació',caption:`Així preparem el nostre ${c} a ${name}. Tot fet amb cura i amor.`,hashtags:'#chef #cocina',imagePrompt:`Chef preparing ${c} in professional kitchen`},
+    {id:'p3',type:'post',emoji:'📸',title:'El plat estrella',caption:`El ${c} que tothom demana a ${name}. Vine a provar-lo!`,hashtags:'#foodie #restaurante',imagePrompt:`Beautiful ${c} on elegant plate overhead shot`},
+    {id:'p4',type:'story',emoji:'✨',title:'Detalls',caption:`Els petits detalls marquen la diferència. El nostre ${c} t\'espera.`,hashtags:'#gourmet',imagePrompt:`Close up detail ${c} food photography`},
+    {id:'p5',type:'post',emoji:'🔥',title:'Acabat de fer',caption:`${c} acabat de preparar per a tu a ${name}. Fresc cada dia.`,hashtags:'#fresh #km0',imagePrompt:`Fresh ${c} restaurant quality`},
+    {id:'p6',type:'story',emoji:'❤️',title:'Gràcies',caption:`Gràcies per triar ${name}. El ${c} és el nostre homenatge al bon menjar.`,hashtags:'#gracias #restaurante',imagePrompt:`Happy dining restaurant warm atmosphere ${c}`}
+  ];
+}
+
+function renderProps() {
+  const g = document.getElementById('propGrid');
+  g.innerHTML = proposals.map(p => `
+    <div class="pcard" id="card-${p.id}">
+      <span class="sbadge">✓ Seleccionada</span>
+      <div class="cprev ${p.type==='story'?'story':''}" id="cprev-${p.id}" onclick="toggleSel('${p.id}')">
+        <div class="iload">
+          <span style="font-size:28px">${p.emoji}</span>
+          <span class="ilt" style="text-align:center;padding:0 12px;font-size:11px">${p.title}</span>
+        </div>
+        <div id="srctag-${p.id}" class="img-src-tag" style="display:none"></div>
+      </div>
+      <div class="cbody">
+        <span class="tbadge ${p.type}">${p.type==='post'?'□ Post':'□ Story'}</span>
+        <div style="font-size:14px;font-weight:500;margin-bottom:6px">${p.title}</div>
+        <div class="ccap">${p.caption}</div>
+      </div>
+      <div class="cact">
+        <button class="bsel" onclick="toggleSel('${p.id}')">Seleccionar</button>
+        <button class="bedit" onclick="openPrev('${p.id}')">Editar</button>
+        <button class="bgen" id="imgbtn-${p.id}" onclick="genImageForProp('${p.id}')" title="Generar imatge amb Nanobanana">🤖 IA</button>
+        <button class="bgen" onclick="pickImageForProp('${p.id}')" title="Triar de la librería">🖼 Lib</button>
+      </div>
+    </div>`).join('');
+  document.getElementById('propCount').textContent = proposals.length + ' propuestas generadas';
+  document.getElementById('propArea').style.display = 'block';
+  updSelUI();
+}
+
+function toggleSel(id) {
+  const c = document.getElementById('card-'+id);
+  if (selIds.has(id)) { selIds.delete(id); c?.classList.remove('sel'); }
+  else { selIds.add(id); c?.classList.add('sel'); }
+  updSelUI();
+}
+function selAll() { proposals.forEach(p => { selIds.add(p.id); document.getElementById('card-'+p.id)?.classList.add('sel'); }); updSelUI(); }
+function updSelUI() {
+  const n = selIds.size;
+  document.getElementById('selCount').textContent = n + ' seleccionadas';
+  const b = document.getElementById('schedBtn'); b.disabled = n === 0;
+  b.textContent = n > 0 ? `Programar ${n} → ` : 'Programar →';
+}
+
+// =====================================================
+// PREVIEW MODAL
+// =====================================================
+function openPrev(id) {
+  const p = proposals.find(x => x.id === id); if (!p) return;
+  editP = p;
+  const ig = document.getElementById('cfgIG').value || '@mi_restaurante';
+  document.getElementById('mpTitle').textContent = p.title;
+  document.getElementById('mpSub').textContent = p.type === 'post' ? 'Vista previa · Post' : 'Vista previa · Story';
+  document.getElementById('mpCap').value = p.caption;
+  document.getElementById('mpDate').value = new Date().toISOString().split('T')[0];
+  const imgH = p.imageData
+    ? `<img src="${p.imageData}" alt="" style="width:100%;height:100%;object-fit:cover">`
+    : `<div style="display:flex;align-items:center;justify-content:center;height:200px;flex-direction:column;gap:8px"><span style="font-size:48px">${p.emoji}</span><span style="font-size:12px;color:var(--text3)">${p.title}</span></div>`;
+  document.getElementById('mpPrev').innerHTML = `
+    <div class="ighd"><div class="igav">${p.emoji}</div><div><div class="igun">${ig}</div><div class="igti">Instagram</div></div></div>
+    <div class="igimg ${p.type==='story'?'story':''}">${imgH}</div>
+    <div class="igca"><div class="igcatxt">${p.caption}</div><div class="ightags">${p.hashtags}</div></div>`;
+  document.getElementById('ovPrev').classList.add('open');
+}
+function closeOv(id) { document.getElementById(id).classList.remove('open'); }
+function closeOvIf(e, id) { if (e.target.id === id) closeOv(id); }
+
+async function confirmSched() {
+  if (!editP) return;
+  const date = document.getElementById('mpDate').value, time = document.getElementById('mpTime').value;
+  if (!date) { toast('Selecciona una fecha'); return; }
+  editP.caption = document.getElementById('mpCap').value;
+  scheduled.push({ ...editP, date, time });
+  updBadge(); closeOv('ovPrev');
+  await saveScheduled();
+  toast('✓ Programada per al ' + fmtDate(date) + ' a les ' + time);
+  renderCal();
+}
+
+// =====================================================
+// BULK SCHEDULE
+// =====================================================
+function schedSel() {
+  bulkItems = proposals.filter(p => selIds.has(p.id)).map(p => ({ ...p, date: new Date().toISOString().split('T')[0], time: '12:00' }));
+  document.getElementById('bulkList').innerHTML = bulkItems.map((p, i) => `
+    <div style="display:flex;align-items:center;gap:8px;padding:10px;background:var(--surface2);border-radius:var(--rs);margin-bottom:8px">
+      ${p.imageData ? `<img src="${p.imageData}" style="width:36px;height:36px;border-radius:6px;object-fit:cover">` : `<span style="font-size:20px;width:36px;text-align:center">${p.emoji}</span>`}
+      <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">${p.title}</div><span class="tbadge ${p.type}" style="font-size:10px;padding:1px 6px">${p.type}</span></div>
+      <input type="date" value="${p.date}" onchange="bulkItems[${i}].date=this.value" style="font-size:11px;padding:5px 8px;width:130px">
+      <input type="time" value="${p.time}" onchange="bulkItems[${i}].time=this.value" style="font-size:11px;padding:5px 8px;width:90px">
+    </div>`).join('');
+  document.getElementById('bdDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('ovBulk').classList.add('open');
+}
+function applyBulk() {
+  const d = document.getElementById('bdDate').value, t = document.getElementById('bdTime').value; if (!d) return;
+  bulkItems.forEach((_,i) => { bulkItems[i].date=d; bulkItems[i].time=t; });
+  document.getElementById('bulkList').querySelectorAll('input[type="date"]').forEach(inp => inp.value=d);
+  document.getElementById('bulkList').querySelectorAll('input[type="time"]').forEach(inp => inp.value=t);
+}
+async function confirmBulk() {
+  bulkItems.forEach(item => { if(item.date) scheduled.push({...item}); });
+  updBadge(); closeOv('ovBulk');
+  await saveScheduled();
+  toast('✓ ' + bulkItems.length + ' publicaciones programadas');
+  selIds.clear(); proposals.forEach(p => document.getElementById('card-'+p.id)?.classList.remove('sel'));
+  updSelUI(); renderCal();
+}
+
+// =====================================================
+// CALENDAR
+// =====================================================
+function renderCal() {
+  document.getElementById('calTitle').textContent = MONTHS[calMon] + ' ' + calYr;
+  const cont = document.getElementById('calDays');
+  const first = new Date(calYr,calMon,1), last = new Date(calYr,calMon+1,0);
+  let sd = first.getDay(); sd = sd===0?6:sd-1;
+  const today = new Date(); let html = '';
+  const pl = new Date(calYr,calMon,0).getDate();
+  for (let i=sd-1;i>=0;i--) html+=`<div class="cday om"><span class="cdnum">${pl-i}</span></div>`;
+  for (let d=1;d<=last.getDate();d++) {
+    const ds=`${calYr}-${String(calMon+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const iT=d===today.getDate()&&calMon===today.getMonth()&&calYr===today.getFullYear();
+    const posts=scheduled.filter(s=>s.date===ds);
+    const dots=posts.map(p=>`<div class="pdot ${p.type==='story'?'story':''}"></div>`).join('');
+    html+=`<div class="cday ${iT?'today':''} ${posts.length?'hp':''}"><span class="cdnum">${d}</span><div style="display:flex;gap:2px;flex-wrap:wrap;margin-top:2px">${dots}</div></div>`;
+  }
+  const rem=(sd+last.getDate())%7; const fill=rem===0?0:7-rem;
+  for (let i=1;i<=fill;i++) html+=`<div class="cday om"><span class="cdnum">${i}</span></div>`;
+  cont.innerHTML=html; renderSList();
+}
+function renderSList() {
+  const c=document.getElementById('schedItems');
+  if (!scheduled.length){c.innerHTML=`<div class="empty"><span class="ei">📅</span><p>Sense publicacions encara.</p></div>`;return;}
+  const sorted=[...scheduled].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  c.innerHTML=sorted.map((s,i)=>`
+    <div class="sitem ${s.type==='story'?'story':''}">
+      <div style="display:flex;align-items:center;gap:10px">
+        ${s.imageData?`<img src="${s.imageData}" class="sthumb" alt="">`:`<span style="font-size:22px">${s.emoji}</span>`}
+        <div style="flex:1;min-width:0">
+          <div class="sd8">${fmtDate(s.date)} · ${s.time}</div>
+          <div class="stit">${s.title}</div>
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
+            <span class="styp">${s.type==='post'?'Post':'Story'}</span>
+            ${s.igStatus==='published'
+              ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(126,201,142,.15);color:var(--green)">✓ Publicat</span>'
+              : igIsConnected()
+                ? `<button id="igpubBtn-${i}" onclick="igPublishPost(${i})" style="background:none;border:1px solid rgba(126,179,232,.35);color:var(--blue);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='rgba(126,179,232,.35)'">📱 Publicar</button>`
+                : '<span style="font-size:10px;color:var(--text3)">IG no connectat</span>'
+            }
+          </div>
+        </div>
+        <button onclick="remSched(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">×</button>
+      </div>
+    </div>`).join('');
+}
+async function remSched(i){
+  const s = scheduled[i];
+  // Eliminar imatge de IDB si existeix
+  if (s?.schedImgId) await idbDeleteSchedImage(s.schedImgId);
+  scheduled.splice(i,1);
+  updBadge();
+  await saveScheduled();
+  renderCal();
+  toast('Eliminada');
+}
+function chMonth(d){calMon+=d;if(calMon>11){calMon=0;calYr++;}if(calMon<0){calMon=11;calYr--;}renderCal();}
+function updBadge(){
+  document.getElementById('calBadge').textContent=scheduled.length;
+  const mb=document.getElementById('calBadgeMob');
+  if(mb) mb.textContent=scheduled.length;
+}
+
+// =====================================================
+// FIREBASE
+// =====================================================
+async function initApp() {
+  setInitMsg('Connectant amb Firebase...');
+  try {
+    firebase.initializeApp(firebaseConfig);
+    auth = firebase.auth();
+    db = firebase.firestore();
+    const cred = await auth.signInAnonymously();
+    currentUser = cred.user;
+    setSyncState('spin','Cargando...');
+    await loadUserData();
+    setSyncState('ok','Sincronizado · ' + currentUser.uid.slice(0,8));
+    document.getElementById('initScreen').style.display = 'none';
+    document.getElementById('mainApp').style.display = 'grid';
+    renderCal();
+    const geminiKey = localStorage.getItem('sc_gemini_key');
+    if (geminiKey && document.getElementById('cfgGeminiKey')) document.getElementById('cfgGeminiKey').value = geminiKey;
+    // Restaurar token d'Instagram
+    const savedIgToken = localStorage.getItem('sc_ig_token');
+    if (savedIgToken && document.getElementById('cfgIgToken')) document.getElementById('cfgIgToken').value = savedIgToken;
+    updateIgConnectUI();
+  } catch(err) {
+    setInitMsg('Error: ' + err.message);
+    console.error(err);
+  }
+}
+function setInitMsg(msg){document.getElementById('initMsg').textContent=msg;}
+function setSyncState(state,txt){
+  const dot=document.getElementById('syncDot');
+  dot.className='sync-dot '+(state==='ok'?'ok':state==='spin'?'spin':'');
+  document.getElementById('syncTxt').textContent=txt;
+  // Mobile
+  const dotM=document.getElementById('syncDotMob');
+  const txtM=document.getElementById('syncTxtMob');
+  if(dotM) dotM.className='sync-dot '+(state==='ok'?'ok':state==='spin'?'spin':'');
+  if(txtM) txtM.textContent=txt;
+}
+
+async function loadUserData() {
+  const snap = await db.collection('users').doc(currentUser.uid).collection('restaurants').orderBy('createdAt').get();
+  restaurants = snap.docs.map(d=>({id:d.id,...d.data()}));
+  if (!restaurants.length) await createDefaultRestaurant();
+  renderRestSelector();
+  currentRestId = restaurants[0].id;
+  await loadRestaurant(currentRestId);
+}
+
+async function createDefaultRestaurant() {
+  const data = {
+    name:'Estudi de Disseny',cuisine:'Disseny gràfic',desc:'Estudi creatiu especialitzat en identitat de marca.',
+    web:'',ig:'@estudidisseny',lang:'Español',freq:'Diaria',
+    tags:'#disseny #branding',cta:'¡Reserva!',scheduled:[],
+    createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const ref = await db.collection('users').doc(currentUser.uid).collection('restaurants').add(data);
+  restaurants.push({id:ref.id,...data});
+  currentRestId = ref.id;
+}
+
+async function loadRestaurant(id) {
+  currentRestId = id;
+  const doc = await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(id).get();
+  if (!doc.exists) return;
+  const d = doc.data();
+  document.getElementById('cfgName').value = d.name||'';
+  document.getElementById('cfgCuisine').value = d.cuisine||'';
+  document.getElementById('cfgDesc').value = d.desc||'';
+  document.getElementById('cfgWeb').value = d.web||'';
+  document.getElementById('cfgIG').value = d.ig||'';
+  document.getElementById('cfgLang').value = d.lang||'Español';
+  document.getElementById('cfgFreq').value = d.freq||'Diaria';
+  document.getElementById('cfgTags').value = d.tags||'';
+  document.getElementById('cfgCTA').value = d.cta||'';
+  // Pre-emplenar camps de la librería
+  const igEl = document.getElementById('igUsername');
+  if (igEl && d.ig) igEl.value = d.ig;
+  const webEl = document.getElementById('webUrl');
+  if (webEl && d.web) webEl.value = d.web;
+  // Actualitzar info librería
+  const li = document.getElementById('libRestInfo');
+  if (li) li.textContent = 'Imatges de ' + (d.name||'el restaurant actiu');
+  scheduled = (d.scheduled||[]).map(s=>({...s}));
+  updBadge(); renderCal();
+  // Restaurar imatges dels posts programats des d'IndexedDB
+  restoreSchedImages();
+  // Carregar imatges generades guardades (IndexedDB)
+  libImages = libImages.filter(i => i.source !== 'generated');
+  loadPersistedImages(id);
+}
+
+function renderRestSelector() {
+  const html = restaurants.map(r=>`<option value="${r.id}">${r.name}</option>`).join('');
+  ['restSel','restSelMobile','restSelDrawer'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el){ el.innerHTML=html; if(currentRestId) el.value=currentRestId; }
+  });
+}
+
+async function changeRest() {
+  const id = document.getElementById('restSel').value;
+  if (id===currentRestId) return;
+  setSyncState('spin','Cargando...');
+  await loadRestaurant(id);
+  libImages = []; // Reset librería per nou restaurant
+  setSyncState('ok','Sincronizado');
+  toast('Restaurante cambiado');
+}
+
+async function addRest() {
+  const n = prompt('Nombre del nuevo restaurante:'); if (!n) return;
+  const data = {
+    name:n,cuisine:'Especialitat / sector',desc:'Descripción.',web:'',ig:'@'+n.toLowerCase().replace(/\s+/g,''),
+    lang:'Español',freq:'Diaria',tags:'#restaurante',cta:'¡Reserva!',
+    scheduled:[],createdAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  const ref = await db.collection('users').doc(currentUser.uid).collection('restaurants').add(data);
+  restaurants.push({id:ref.id,...data});
+  renderRestSelector();
+  document.getElementById('restSel').value = ref.id;
+  await loadRestaurant(ref.id);
+  toast('✓ "'+n+'" creat');
+}
+
+async function saveCfg() {
+  if (!currentUser||!currentRestId) return;
+  const geminiKey = document.getElementById('cfgGeminiKey')?.value?.trim();
+  if (geminiKey) localStorage.setItem('sc_gemini_key', geminiKey);
+  const data = {
+    name:document.getElementById('cfgName').value,
+    cuisine:document.getElementById('cfgCuisine').value,
+    desc:document.getElementById('cfgDesc').value,
+    web:document.getElementById('cfgWeb').value,
+    ig:document.getElementById('cfgIG').value,
+    lang:document.getElementById('cfgLang').value,
+    freq:document.getElementById('cfgFreq').value,
+    tags:document.getElementById('cfgTags').value,
+    cta:document.getElementById('cfgCTA').value,
+    updatedAt:firebase.firestore.FieldValue.serverTimestamp()
+  };
+  setSyncState('spin','Guardando...');
+  await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(currentRestId).update(data);
+  const r = restaurants.find(x=>x.id===currentRestId);
+  if (r) Object.assign(r,data);
+  renderRestSelector(); document.getElementById('restSel').value = currentRestId;
+  // Actualitzar camps librería
+  const igEl = document.getElementById('igUsername'); if (igEl) igEl.value = data.ig||'';
+  const webEl = document.getElementById('webUrl'); if (webEl) webEl.value = data.web||'';
+  setSyncState('ok','Guardado ✓');
+  toast('✓ Perfil guardat a Firebase');
+}
+
+async function saveScheduled() {
+  if (!currentUser||!currentRestId) return;
+  setSyncState('spin','Guardando...');
+  try {
+    // Guardar imatges a IDB (no a Firestore: límit 1MB doc)
+    const itemsToSave = await Promise.all(scheduled.map(async (s, i) => {
+      const item = {...s};
+      if (item.imageData && !item.imageData.startsWith('blob:')) {
+        // Guardar a IDB si no té ja un ID
+        if (!item.schedImgId) {
+          const idbId = await idbSaveSchedImage(item.imageData, currentRestId);
+          if (idbId) { item.schedImgId = idbId; scheduled[i].schedImgId = idbId; }
+        }
+      }
+      // Treure imageData de Firestore
+      const {imageData, ...noImg} = item;
+      return noImg;
+    }));
+    await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(currentRestId)
+      .update({scheduled: itemsToSave});
+    setSyncState('ok','Guardado ✓');
+  } catch(e) {
+    console.error('saveScheduled error:', e);
+    setSyncState('ok','Error guardant');
+    toast('❌ Error guardant: ' + e.message.slice(0,60));
+  }
+}
+
+// =====================================================
+// NAV + HELPERS
+// =====================================================
+function showSec(n,btn) {
+  document.querySelectorAll('.content').forEach(s=>s.style.display='none');
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('active'));
+  const s=document.getElementById('sec-'+n); s.style.display='flex'; s.style.flexDirection='column';
+  if (btn) btn.classList.add('active');
+  if (n==='calendar') renderCal();
+  if (n==='library') {
+    // Pre-emplenar camps si vénen del config
+    const ig = document.getElementById('cfgIG')?.value||'';
+    const web = document.getElementById('cfgWeb')?.value||'';
+    if (ig && document.getElementById('igUsername')) document.getElementById('igUsername').value = ig;
+    if (web && document.getElementById('webUrl')) document.getElementById('webUrl').value = web;
+  }
+}
+
+function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd} ${MONTHS[parseInt(m)-1].slice(0,3)} ${y}`;}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),3500);}
+
+// =====================================================
+// ELIMINAR RESTAURANTE
+// =====================================================
+async function deleteCurrentRest() {
+  const rest = restaurants.find(r => r.id === currentRestId);
+  if (!rest) return;
+  if (restaurants.length <= 1) { toast("❌ No pots eliminar l'únic restaurant"); return; }
+  if (!confirm('¿Eliminar el client "' + rest.name + '"? Esta acción no se puede deshacer.')) return;
+  try {
+    setSyncState('spin', 'Eliminant...');
+    await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(currentRestId).delete();
+    // Eliminar imágenes de IDB (generades + programades)
+    await idbClearRestImages(currentRestId);
+    await idbClearRestSchedImages(currentRestId);
+    restaurants = restaurants.filter(r => r.id !== currentRestId);
+    currentRestId = restaurants[0].id;
+    renderRestSelector();
+    document.getElementById('restSel').value = currentRestId;
+    libImages = [];
+    await loadRestaurant(currentRestId);
+    setSyncState('ok', 'Guardado');
+    toast('✓ Restaurante "' + rest.name + '" eliminat');
+  } catch(e) {
+    setSyncState('ok', 'Error');
+    toast('❌ Error eliminant: ' + e.message);
+  }
+}
+
+// =====================================================
+// INDEXEDDB — Persistencia d'imatges (generades + programades)
+// v1: generatedImages  |  v2: + scheduledImages
+// =====================================================
+const IDB_NAME = 'SocialChefDB', IDB_STORE = 'generatedImages', IDB_SCHED_STORE = 'scheduledImages', IDB_VER = 2;
+let idb = null;
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    if (idb) { resolve(idb); return; }
+    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      const oldV = e.oldVersion;
+      if (oldV < 1) {
+        const s = db.createObjectStore(IDB_STORE, { keyPath: 'id', autoIncrement: true });
+        s.createIndex('restId', 'restId', { unique: false });
+      }
+      if (oldV < 2) {
+        const ss = db.createObjectStore(IDB_SCHED_STORE, { keyPath: 'id', autoIncrement: true });
+        ss.createIndex('restId', 'restId', { unique: false });
+      }
+    };
+    req.onsuccess = e => { idb = e.target.result; resolve(idb); };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// ── Helpers per a scheduled images ──────────────────────────────────────────
+async function idbSaveSchedImage(imageData, restId) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SCHED_STORE, 'readwrite');
+      const req = tx.objectStore(IDB_SCHED_STORE).add({ imageData, restId, savedAt: Date.now() });
+      req.onsuccess = () => resolve(req.result); // returns the auto-generated id
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch(e) { console.warn('idbSaveSchedImage error:', e); return null; }
+}
+
+async function idbGetSchedImage(id) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SCHED_STORE, 'readonly');
+      const req = tx.objectStore(IDB_SCHED_STORE).get(id);
+      req.onsuccess = () => resolve(req.result?.imageData || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch(e) { console.warn('idbGetSchedImage error:', e); return null; }
+}
+
+async function idbDeleteSchedImage(id) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SCHED_STORE, 'readwrite');
+      tx.objectStore(IDB_SCHED_STORE).delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch(e) { console.warn('idbDeleteSchedImage error:', e); }
+}
+
+async function idbClearRestSchedImages(restId) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_SCHED_STORE, 'readwrite');
+      const idx = tx.objectStore(IDB_SCHED_STORE).index('restId');
+      const req = idx.getAllKeys(restId);
+      req.onsuccess = () => {
+        req.result.forEach(k => tx.objectStore(IDB_SCHED_STORE).delete(k));
+        tx.oncomplete = resolve;
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch(e) { console.warn('idbClearRestSchedImages error:', e); }
+}
+
+async function restoreSchedImages() {
+  let changed = false;
+  await Promise.all(scheduled.map(async (s, i) => {
+    if (s.schedImgId && !s.imageData) {
+      const data = await idbGetSchedImage(s.schedImgId);
+      if (data) { scheduled[i].imageData = data; changed = true; }
+    }
+  }));
+  if (changed) renderCal();
+}
+
+async function idbSaveImage(img) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).add({ ...img, savedAt: Date.now() });
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch(e) { console.warn('idbSaveImage error:', e); }
+}
+
+async function idbDeleteImage(id) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.objectStore(IDB_STORE).delete(id);
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch(e) { console.warn('idbDeleteImage error:', e); }
+}
+
+async function idbLoadImages(restId) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readonly');
+      const idx = tx.objectStore(IDB_STORE).index('restId');
+      const req = idx.getAll(restId);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  } catch(e) { console.warn('idbLoadImages error:', e); return []; }
+}
+
+async function idbClearRestImages(restId) {
+  try {
+    const db = await openIDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, 'readwrite');
+      const idx = tx.objectStore(IDB_STORE).index('restId');
+      const req = idx.getAllKeys(restId);
+      req.onsuccess = () => {
+        req.result.forEach(k => tx.objectStore(IDB_STORE).delete(k));
+        tx.oncomplete = resolve;
+      };
+      req.onerror = () => reject(req.error);
+    });
+  } catch(e) { console.warn('idbClearRestImages error:', e); }
+}
+
+// Cargar imágenes guardadas del restaurant activo en la librería
+async function loadPersistedImages(restId) {
+  const saved = await idbLoadImages(restId);
+  saved.forEach(img => {
+    if (!libImages.find(i => i.idbId === img.id)) {
+      libImages.push({ ...img, source: 'generated', idbId: img.id });
+    }
+  });
+  if (saved.length) renderGenGrid();
+}
+
+function openIgProfile() {
+  const ig = document.getElementById('igUsername')?.value?.trim().replace('@','') || '';
+  if (!ig) { toast("Entra un usuari d'Instagram primer"); return; }
+  window.open('https://www.instagram.com/' + ig + '/', '_blank');
+}
+
+function updateIgFromInput() {
+  const ig = document.getElementById('igUsername')?.value?.trim().replace('@','') || '';
+  const link = document.getElementById('igDirectLink');
+  if (link && ig) link.href = 'https://www.instagram.com/' + ig + '/';
+}
+
+// =====================================================
+// INSTAGRAM GRAPH API — Publicació automàtica
+// =====================================================
+function igIsConnected() { return !!(igToken && igUserId); }
+
+function updateIgConnectUI() {
+  const statusEl = document.getElementById('igConnectStatus');
+  const nameEl   = document.getElementById('igConnectName');
+  const btnEl    = document.getElementById('igConnectBtn');
+  const disconnBtn = document.getElementById('igDisconnectBtn');
+  if (!statusEl) return;
+  if (igIsConnected()) {
+    statusEl.textContent = '● Connectat';
+    statusEl.style.color = 'var(--green)';
+    if (nameEl) nameEl.textContent = igAccountName ? '@' + igAccountName : 'Instagram';
+    if (btnEl) btnEl.style.display = 'none';
+    if (disconnBtn) disconnBtn.style.display = 'inline-flex';
+  } else {
+    statusEl.textContent = '○ No connectat';
+    statusEl.style.color = 'var(--text3)';
+    if (nameEl) nameEl.textContent = '';
+    if (btnEl) btnEl.style.display = 'inline-flex';
+    if (disconnBtn) disconnBtn.style.display = 'none';
+  }
+  // Actualitzar botons publicar al calendari
+  renderSList();
+}
+
+async function igTestConnect() {
+  const token = document.getElementById('cfgIgToken')?.value?.trim();
+  if (!token) { toast("Entra el token d'accés d'Instagram"); return; }
+  const btn = document.getElementById('igTestBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Verificant...'; }
+  try {
+    const res = await fetch(IG_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'test_connection', token })
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Error desconegut');
+    igToken  = token;
+    igUserId = data.user_id;
+    igAccountName = data.username || '';
+    localStorage.setItem('sc_ig_token',        igToken);
+    localStorage.setItem('sc_ig_user_id',      igUserId);
+    localStorage.setItem('sc_ig_account_name', igAccountName);
+    updateIgConnectUI();
+    toast('✓ Connectat com @' + igAccountName);
+  } catch(e) {
+    toast('❌ ' + e.message.slice(0,80));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Verificar i connectar'; }
+  }
+}
+
+function igDisconnect() {
+  if (!confirm("Desconnectar el compte d'Instagram?")) return;
+  igToken = igUserId = igAccountName = '';
+  localStorage.removeItem('sc_ig_token');
+  localStorage.removeItem('sc_ig_user_id');
+  localStorage.removeItem('sc_ig_account_name');
+  const inp = document.getElementById('cfgIgToken');
+  if (inp) inp.value = '';
+  updateIgConnectUI();
+  toast('Instagram desconnectat');
+}
+
+async function igPublishPost(schedIdx) {
+  if (!igIsConnected()) { toast('Connecta Instagram primer a Configuració'); return; }
+  const s = scheduled[schedIdx];
+  if (!s) return;
+
+  const btn = document.getElementById('igpubBtn-' + schedIdx);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Publicant...'; }
+
+  try {
+    const caption = s.caption + (s.hashtags ? `\n\n${s.hashtags}` : '');
+
+    // Preparar payload
+    const payload = {
+      action:   'publish',
+      token:    igToken,
+      user_id:  igUserId,
+      caption,
+      media_type: s.type === 'story' ? 'STORIES' : 'FEED',
+    };
+
+    // Afegir imatge si existeix
+    if (s.imageData) {
+      if (s.imageData.startsWith('http')) {
+        payload.image_url = s.imageData;
+      } else {
+        // base64 → el PHP ho puja al servidor i retorna la URL pública
+        payload.image_data = s.imageData;
+      }
+    }
+
+    const res = await fetch(IG_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Error publicant');
+
+    scheduled[schedIdx].igStatus = 'published';
+    scheduled[schedIdx].igPostId = data.post_id || '';
+    await saveScheduled();
+    renderSList();
+    toast('✓ Publicat a Instagram!');
+  } catch(e) {
+    toast('❌ Error publicant: ' + e.message.slice(0,80));
+    if (btn) { btn.disabled = false; btn.textContent = '📱 Publicar'; }
+  }
+}
+
+// =====================================================
+// MOBILE NAV
+// =====================================================
+function openDrawer() {
+  document.getElementById('mobileDrawer')?.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeDrawer() {
+  document.getElementById('mobileDrawer')?.classList.remove('open');
+  document.body.style.overflow = '';
+}
+function closeDrawerIf(e) {
+  if (e.target === document.getElementById('mobileDrawer')) closeDrawer();
+}
+
+function syncMobileNav(section) {
+  // Sync bottom nav active state
+  document.querySelectorAll('.mobile-nav button').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('mbn-' + section);
+  if (btn) btn.classList.add('active');
+  // Sync drawer nav
+  document.querySelectorAll('#mobileDrawer .ni').forEach(b => b.classList.remove('active'));
+  const dbtn = document.getElementById('dni' + section.charAt(0).toUpperCase() + section.slice(0,3));
+  // simplified: just remove all active from drawer
+}
+
+function syncAllSelectors() {
+  // Keep mobile selectors in sync with main selector
+  const restSel = document.getElementById('restSel');
+  const mobile = document.getElementById('restSelMobile');
+  const drawer = document.getElementById('restSelDrawer');
+  if (!restSel) return;
+  [mobile, drawer].forEach(sel => {
+    if (!sel) return;
+    sel.innerHTML = restSel.innerHTML;
+    sel.value = restSel.value;
+  });
+}
+
+function changeRestMobile() {
+  const sel = document.getElementById('restSelMobile');
+  document.getElementById('restSel').value = sel.value;
+  document.getElementById('restSelDrawer').value = sel.value;
+  changeRest();
+}
+function changeRestDrawer() {
+  const sel = document.getElementById('restSelDrawer');
+  document.getElementById('restSel').value = sel.value;
+  document.getElementById('restSelMobile').value = sel.value;
+  changeRest();
+}
+
+// Mobile sync is handled inline in the original functions below
+
+window.onload = initApp;
+</script>
+</body>
+</html>
