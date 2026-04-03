@@ -1874,23 +1874,6 @@ async function checkPublisherStatus() {
 }
 
 async function cleanTestPosts() {
-  // Elimina els posts de test (títol TEST_...) del pending_posts.json del servidor
-  try {
-    const res = await fetch(PUBLISHER_URL + '?test=1&secret=' + CRON_SECRET);
-    const data = await res.json();
-    const testPosts = (data.posts || []).filter(p => (p.title||'').startsWith('TEST_'));
-    if (!testPosts.length) { toast('No hi ha posts de test pendents'); return; }
-    // Desar cadascun com a "published=true" per treure'ls de la cua
-    // Truc: enviem un post amb schedId existent però amb date molt passada i published=true
-    // No tenim endpoint delete directe; la manera és marcar-los com a processats
-    // Per simplificar, demanem a l'usuari que esborra pending_posts.json manualment
-    toast('Hi ha ' + testPosts.length + ' posts de test. Esborra manualment pending_posts.json al cPanel i reprograma els posts reals.');
-  } catch(e) {
-    toast('Error: ' + e.message);
-  }
-}
-
-async function cleanTestPosts() {
   try {
     const res = await fetch(PUBLISHER_URL, {
       method: 'POST',
@@ -1910,7 +1893,6 @@ async function cleanTestPosts() {
 }
 
 async function repushAllScheduled() {
-  // Torna a enviar tots els posts programats al servidor
   if (!scheduled.length) { toast('No hi ha posts programats'); return; }
   const igToken  = localStorage.getItem('sc_ig_token') || '';
   const igUserId = localStorage.getItem('sc_ig_user_id') || '';
@@ -1924,7 +1906,8 @@ async function repushAllScheduled() {
   toast('✓ ' + ok + ' posts enviats al planificador');
   checkPublisherStatus();
 }
-  const btn = document.getElementById('testPubBtn');
+
+async function testSavePendingPost() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Testejant...'; }
   try {
     // 1. Test connexió bàsica
