@@ -609,6 +609,8 @@ select option{background:var(--surface2)}
               <div style="display:flex;flex-direction:column;gap:6px">
                 <button id="testPubBtn" onclick="testSavePendingPost()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap">🔍 Test connexió</button>
                 <button onclick="checkPublisherStatus()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap">↻ Refrescar estat</button>
+                <button onclick="repushAllScheduled()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap" title="Torna a enviar tots els posts pendents al servidor">↑ Reenviar tots</button>
+                <button onclick="cleanTestPosts()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap;color:var(--red);border-color:rgba(232,126,126,.5)" title="Elimina els posts TEST_ del planificador">🗑 Netejar tests</button>
               </div>
             </div>
             <div style="margin-top:10px;padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
@@ -1743,12 +1745,11 @@ async function saveCfg() {
 async function savePendingPost(post) {
   const igToken  = localStorage.getItem('sc_ig_token') || '';
   const igUserId = localStorage.getItem('sc_ig_user_id') || '';
-  if (!igToken || !igUserId) return; // Necessita compte Instagram connectat
+  if (!igToken || !igUserId) return;
 
   let imageUrl = post.imageData || '';
 
-  // BUGFIX: Si la imatge és base64, primer la pugem al servidor per obtenir URL pública.
-  // Instagram no accepta base64, necessita una URL HTTP accessible públicament.
+  // Si la imatge és base64, pujarla al servidor per obtenir URL pública
   if (imageUrl.startsWith('data:')) {
     try {
       const upRes = await fetch(PUBLISHER_URL, {
@@ -1756,25 +1757,27 @@ async function savePendingPost(post) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ secret: CRON_SECRET, action: 'upload_image', imageData: imageUrl })
       });
+      if (!upRes.ok) throw new Error('HTTP ' + upRes.status);
       const upData = await upRes.json();
       if (upData.success && upData.url) {
         imageUrl = upData.url;
       } else {
-        console.warn('No s\'ha pogut pujar la imatge:', upData.error);
-        return;
+        // BUGFIX: Mostrar error clar en lloc de fallar silenciosament
+        const errMsg = upData.error || 'Error pujant imatge';
+        toast('⚠️ Publicació guardada al calendari però NO al planificador automàtic.\nCausa: ' + errMsg + '\n→ Crea la carpeta uploads/ al servidor (chmod 755)');
+        console.warn('savePendingPost upload error:', upData);
+        // Desar igualment sense imatge (el cron fallarà però quedarà registrat al log)
+        imageUrl = '';
       }
     } catch(e) {
-      console.warn('Error pujant imatge:', e.message);
+      toast('⚠️ No s\'ha pogut contactar amb publisher.php: ' + e.message);
+      console.warn('savePendingPost fetch error:', e);
       return;
     }
   }
 
-  if (!imageUrl.startsWith('http')) return; // Sense URL pública no podem publicar
-
+  // Desar el post al servidor (amb o sense imageUrl pública)
   try {
-    // BUGFIX: Fem POST directe a PUBLISHER_URL (sense ?action=save).
-    // Abans es passava ?action=save però sense el secret a la URL,
-    // provocant un 403 perquè el check GET bloquejava tots els POST.
     const res = await fetch(PUBLISHER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1782,18 +1785,27 @@ async function savePendingPost(post) {
         secret: CRON_SECRET,
         post: {
           ...post,
-          imageData: imageUrl, // URL pública (no base64)
+          imageData: imageUrl,
           igToken,
           igUserId,
           savedAt: new Date().toISOString()
         }
       })
     });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    if (data.success) toast('✓ Afegit al planificador automàtic (⏰ es publicarà a l\'hora indicada)');
-    else console.warn('savePendingPost error:', data.error);
+    if (data.success) {
+      if (imageUrl.startsWith('http')) {
+        toast('✓ Afegit al planificador automàtic ⏰ (es publicarà a l\'hora indicada)');
+      } else {
+        toast('⚠️ Post desat al planificador, però sense imatge. Crea la carpeta uploads/ al servidor i reprograma.');
+      }
+    } else {
+      toast('❌ Error desant al planificador: ' + (data.error || 'desconegut'));
+    }
   } catch(e) {
-    console.warn('savePendingPost error:', e.message);
+    toast('❌ Error contactant publisher.php: ' + e.message);
+    console.warn('savePendingPost save error:', e);
   }
 }
 
@@ -1861,7 +1873,57 @@ async function checkPublisherStatus() {
   }
 }
 
-async function testSavePendingPost() {
+async function cleanTestPosts() {
+  // Elimina els posts de test (títol TEST_...) del pending_posts.json del servidor
+  try {
+    const res = await fetch(PUBLISHER_URL + '?test=1&secret=' + CRON_SECRET);
+    const data = await res.json();
+    const testPosts = (data.posts || []).filter(p => (p.title||'').startsWith('TEST_'));
+    if (!testPosts.length) { toast('No hi ha posts de test pendents'); return; }
+    // Desar cadascun com a "published=true" per treure'ls de la cua
+    // Truc: enviem un post amb schedId existent però amb date molt passada i published=true
+    // No tenim endpoint delete directe; la manera és marcar-los com a processats
+    // Per simplificar, demanem a l'usuari que esborra pending_posts.json manualment
+    toast('Hi ha ' + testPosts.length + ' posts de test. Esborra manualment pending_posts.json al cPanel i reprograma els posts reals.');
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
+}
+
+async function cleanTestPosts() {
+  try {
+    const res = await fetch(PUBLISHER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: CRON_SECRET, action: 'delete_pending', clearTests: true })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast('✓ Posts de test eliminats. Pendents restants: ' + data.pending);
+      checkPublisherStatus();
+    } else {
+      toast('Error: ' + (data.error || 'desconegut'));
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
+}
+
+async function repushAllScheduled() {
+  // Torna a enviar tots els posts programats al servidor
+  if (!scheduled.length) { toast('No hi ha posts programats'); return; }
+  const igToken  = localStorage.getItem('sc_ig_token') || '';
+  const igUserId = localStorage.getItem('sc_ig_user_id') || '';
+  if (!igToken || !igUserId) { toast('Connecta Instagram primer'); return; }
+  let ok = 0;
+  for (const post of scheduled) {
+    if (post.igStatus === 'published') continue;
+    await savePendingPost(post);
+    ok++;
+  }
+  toast('✓ ' + ok + ' posts enviats al planificador');
+  checkPublisherStatus();
+}
   const btn = document.getElementById('testPubBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Testejant...'; }
   try {
