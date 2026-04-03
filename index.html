@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Social Design</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Social Design v2</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
@@ -593,6 +596,27 @@ select option{background:var(--surface2)}
                   Un cop connectat, cada post del calendari tindrà un botó <strong>📱 Publicar</strong> per publicar directament a Instagram.
                 </p>
               </div>
+            </div>
+          </div>
+
+          <!-- Diagnòstic del publisher / cron -->
+          <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+            <div style="font-size:13px;font-weight:500;margin-bottom:10px">⏰ Publicador automàtic (Cron)</div>
+            <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px;padding:12px 14px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border);font-size:12px;line-height:1.8" id="publisherStatus">
+                Clica "Test connexió" per verificar l'estat del publisher
+              </div>
+              <div style="display:flex;flex-direction:column;gap:6px">
+                <button id="testPubBtn" onclick="testSavePendingPost()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap">🔍 Test connexió</button>
+                <button onclick="checkPublisherStatus()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap">↻ Refrescar estat</button>
+              </div>
+            </div>
+            <div style="margin-top:10px;padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
+              <p style="font-size:11px;color:var(--text3);line-height:1.7">
+                💡 <strong style="color:var(--text2)">Cron job al cPanel:</strong><br>
+                <code style="font-size:10px;background:var(--surface3);padding:2px 6px;border-radius:3px;color:var(--accent)">* * * * * curl -s "https://jordiqterrassa.com/publisher.php?secret=social_design_2025_secret" &gt; /dev/null 2&gt;&amp;1</code><br>
+                <span style="color:var(--text3)">Assegura't que la carpeta <code style="font-size:10px;background:var(--surface3);padding:1px 5px;border-radius:3px">uploads/</code> existeix al servidor i té permisos d'escriptura (chmod 755).</span>
+              </p>
             </div>
           </div>
         </div>
@@ -1466,34 +1490,38 @@ function renderCal() {
 function renderSList() {
   const c=document.getElementById('schedItems');
   if (!scheduled.length){c.innerHTML=`<div class="empty"><span class="ei">📅</span><p>Sense publicacions encara.</p></div>`;return;}
-  // BUGFIX: Guardem l'índex ORIGINAL de l'array scheduled (no el de l'array ordenat).
-  // Abans s'usava l'índex del sorted[], però remSched/igPublishPost operen sobre scheduled[].
   const sorted=[...scheduled].map((s,origIdx)=>({...s,_origIdx:origIdx})).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
-  c.innerHTML=sorted.map((s)=>{
-    const i=s._origIdx;
-    return `
-    <div class="sitem ${s.type==='story'?'story':''}">
-      <div style="display:flex;align-items:center;gap:10px">
-        ${s.imageData?`<img src="${s.imageData}" class="sthumb" alt="">`:`<span style="font-size:22px">${s.emoji}</span>`}
-        <div style="flex:1;min-width:0">
-          <div class="sd8">${fmtDate(s.date)} · ${s.time}</div>
-          <div class="stit">${s.title}</div>
-          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">
-            <span class="styp">${s.type==='post'?'Post':'Story'}</span>
-            ${s.igStatus==='published'
-              ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(126,201,142,.15);color:var(--green)">✓ Publicat</span>'
-              : igIsConnected()
-                ? `<button id="igpubBtn-${i}" onclick="igPublishPost(${i})" style="background:none;border:1px solid rgba(126,179,232,.35);color:var(--blue);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--blue)'" onmouseout="this.style.borderColor='rgba(126,179,232,.35)'">📱 Publicar</button>`
-                : '<span style="font-size:10px;color:var(--text3)">IG no connectat</span>'
-            }
-          </div>
-        </div>
-        <div style="display:flex;gap:4px;align-items:center">
-          <button onclick="openEditSched(${i})" style="background:none;border:1px solid var(--border2);color:var(--text3);cursor:pointer;font-size:11px;padding:4px 10px;border-radius:var(--rs);font-family:inherit;transition:all .15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border2)';this.style.color='var(--text3)'">✏️</button>
-          <button onclick="remSched(${i})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px">×</button>
-        </div>
-      </div>
-    </div>`}).join('');
+  let html = '';
+  for (const s of sorted) {
+    const i = s._origIdx;
+    const thumb = s.imageData
+      ? '<img src="' + s.imageData + '" class="sthumb" alt="">'
+      : '<span style="font-size:22px">' + (s.emoji||'📸') + '</span>';
+    let statusBtn = '';
+    if (s.igStatus === 'published') {
+      statusBtn = '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(126,201,142,.15);color:var(--green)">✓ Publicat</span>';
+    } else if (igIsConnected()) {
+      statusBtn = '<button id="igpubBtn-' + i + '" onclick="igPublishPost(' + i + ')" style="background:none;border:1px solid rgba(126,179,232,.35);color:var(--blue);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit">📱 Publicar</button>';
+    } else {
+      statusBtn = '<span style="font-size:10px;color:var(--text3)">IG no connectat</span>';
+    }
+    html += '<div class="sitem ' + (s.type==='story'?'story':'') + '">'
+      + '<div style="display:flex;align-items:center;gap:8px">'
+      + thumb
+      + '<div style="flex:1;min-width:0;overflow:hidden">'
+      + '<div class="sd8">' + fmtDate(s.date) + ' · ' + s.time + '</div>'
+      + '<div class="stit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + s.title + '</div>'
+      + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">'
+      + '<span class="styp">' + (s.type==='post'?'Post':'Story') + '</span>'
+      + statusBtn
+      + '</div></div>'
+      + '<div style="display:flex;gap:2px;flex-shrink:0">'
+      + '<button onclick="openEditSched(' + i + ')" title="Editar" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:13px;padding:5px 8px;border-radius:var(--rs);line-height:1">✏️</button>'
+      + '<button onclick="remSched(' + i + ')" title="Eliminar" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px 6px;line-height:1">×</button>'
+      + '</div>'
+      + '</div></div>';
+  }
+  c.innerHTML = html;
 }
 // =====================================================
 // EDITAR PUBLICACIÓ PROGRAMADA
@@ -1817,13 +1845,59 @@ function showSec(n,btn) {
 
 async function checkPublisherStatus() {
   const el = document.getElementById('publisherStatus');
-  if (el) el.textContent = 'Consultant...';
+  if (el) el.innerHTML = '<span style="color:var(--text3)">Consultant...</span>';
   try {
     const res = await fetch(PUBLISHER_URL + '?test=1&secret=' + CRON_SECRET);
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' — Verifica que publisher.php existeix al servidor');
     const data = await res.json();
-    if (el) el.innerHTML = '✓ Publicador actiu · ' + data.pending + ' pendents · Última: ' + (data.log?.[0]?.ts || 'mai');
+    const lastLog = data.log?.[0];
+    const lastStr = lastLog ? lastLog.ts + ' — ' + (lastLog.result?.success ? '✓ OK' : '✗ ' + lastLog.result?.error) : 'Mai executat';
+    if (el) el.innerHTML =
+      '<span style="color:var(--green)">✓ Publisher actiu</span><br>' +
+      '<span style="font-size:11px;color:var(--text2)">Pendents: ' + data.pending + ' · Última execució: ' + data.now + '</span><br>' +
+      '<span style="font-size:11px;color:var(--text3)">Darrer log: ' + lastStr + '</span>';
   } catch(e) {
-    if (el) el.textContent = '✗ Error: ' + e.message;
+    if (el) el.innerHTML = '<span style="color:var(--red)">✗ ' + e.message + '</span>';
+  }
+}
+
+async function testSavePendingPost() {
+  const btn = document.getElementById('testPubBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Testejant...'; }
+  try {
+    // 1. Test connexió bàsica
+    const res = await fetch(PUBLISHER_URL + '?test=1&secret=' + CRON_SECRET);
+    if (!res.ok) throw new Error('publisher.php no accessible (HTTP ' + res.status + ')');
+    const status = await res.json();
+    toast('✓ Connexió OK · ' + status.pending + ' posts pendents');
+
+    // 2. Test escriptura: prova de guardar un post fictici
+    const testPost = {
+      title: 'TEST_' + Date.now(),
+      type: 'post',
+      date: new Date().toISOString().split('T')[0],
+      time: '23:59',
+      caption: 'Test automàtic',
+      hashtags: '',
+      imageData: 'https://picsum.photos/400/400',
+      schedId: 'test_' + Date.now(),
+      igToken: localStorage.getItem('sc_ig_token') || 'TEST_NO_TOKEN',
+      igUserId: localStorage.getItem('sc_ig_user_id') || 'TEST_NO_USER_ID',
+    };
+    const saveRes = await fetch(PUBLISHER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: CRON_SECRET, post: testPost })
+    });
+    if (!saveRes.ok) throw new Error('POST fallat (HTTP ' + saveRes.status + ') — Verifica CORS i permisos PHP');
+    const saveData = await saveRes.json();
+    if (!saveData.success) throw new Error('Error desant: ' + (saveData.error || 'desconegut'));
+    toast('✓ Test complet! pending_posts.json escrit correctament (' + saveData.pending + ' posts)');
+    checkPublisherStatus();
+  } catch(e) {
+    toast('❌ ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Test connexió'; }
   }
 }
 
