@@ -511,7 +511,7 @@ select option{background:var(--surface2)}
         <div class="bo-gen-area">
           <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb Nanobanana</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: identitat de marca minimalista, eines de disseny gràfic sobre escriptori, tipografia creativa..."></textarea>
+            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: plat de bravas crujients amb salsa especial de la casa, fotografia professional de menjar..."></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="genImgRatio" style="padding:8px 12px;font-size:13px;width:160px">
                 <option value="1:1">Post (1:1)</option>
@@ -557,11 +557,57 @@ select option{background:var(--surface2)}
             <div class="fg">
               <label>Google Gemini API Key</label>
               <input type="password" id="cfgGeminiKey" placeholder="AIza..." autocomplete="off">
-              <span style="font-size:11px;color:var(--text3);margin-top:3px">Para Imagen 3 · Consíguela gratis en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a></span>
+              <span style="font-size:11px;color:var(--text3);margin-top:3px">Per generar imatges · Gratuïta a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a></span>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
               <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
               <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar aquest client</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generació d'imatges amb IA -->
+        <div class="cfgcard" style="grid-column:1/-1">
+          <h3>🎨 Generació d'imatges amb IA</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div class="fg">
+                <label>Temàtica visual per a les imatges</label>
+                <select id="cfgImgTheme" onchange="saveImgTheme()">
+                  <option value="design">🎨 Disseny gràfic i branding</option>
+                  <option value="arch">🏛️ Arquitectura i interiorisme</option>
+                  <option value="fashion">👗 Moda i lifestyle</option>
+                  <option value="tech">💻 Tecnologia i startup</option>
+                  <option value="nature">🌿 Natura i sostenibilitat</option>
+                  <option value="art">🖼️ Art i il·lustració</option>
+                  <option value="custom">✏️ Personalitzada (escriu avall)</option>
+                </select>
+              </div>
+              <div class="fg" id="cfgImgCustomArea" style="display:none">
+                <label>Descripció del tipus d'imatge que vols</label>
+                <textarea rows="2" id="cfgImgCustom" placeholder="Ex: fotografia de producte cosmètic minimalista, fons pastel, llum natural..." onchange="saveImgTheme()"></textarea>
+              </div>
+              <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border)">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Ordre de generació:</div>
+                <div style="font-size:12px;color:var(--text2);line-height:1.8">
+                  1️⃣ <strong style="color:var(--accent)">Gemini</strong> (si tens API Key) — millor qualitat<br>
+                  2️⃣ <strong style="color:var(--text2)">Puter FLUX</strong> — gratuït amb compte Puter
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:500;margin-bottom:8px">Compte Puter</div>
+                <div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.6">Inicia sessió per usar els teus crèdits FLUX i evitar límits.</div>
+                <div id="puterStatus" style="font-size:12px;color:var(--text3);margin-bottom:10px">○ Estat desconegut</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button id="puterLoginBtn" onclick="puterLogin()" class="bp" style="font-size:12px;padding:8px 14px">Iniciar sessió a Puter</button>
+                  <button id="puterLogoutBtn" onclick="puterLogout()" class="bs" style="font-size:12px;padding:8px 14px;display:none">Desconnectar</button>
+                </div>
+              </div>
+              <div style="padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
+                <p style="font-size:11px;color:var(--text3);line-height:1.7">💡 Sense Gemini Key, Puter usa <strong style="color:var(--text2)">FLUX.1-schnell</strong> gratuïtament. Iniciant sessió a Puter els crèdits no s'esgoten tan ràpid.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -760,25 +806,76 @@ function getGeminiKey() {
   return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
 }
 
-// Prompt engineering per a disseny gràfic — sense menjar
+// ── Temàtiques d'imatge ──────────────────────────────────────────────────────
+const IMG_THEMES = {
+  design:  'graphic design studio flat lay, branding elements, typography books, Pantone swatches, design markers, creative workspace',
+  arch:    'modern architecture interior, clean lines, minimalist space, natural light, architectural details',
+  fashion: 'fashion editorial lifestyle photography, elegant clothing, studio lighting, minimalist background',
+  tech:    'modern tech workspace, laptop, clean desk setup, minimalist office, soft ambient lighting',
+  nature:  'nature and sustainability photography, green plants, natural textures, eco-friendly materials, soft daylight',
+  art:     'art studio with canvas and paint brushes, illustration process, creative workspace, artistic tools and materials',
+  custom:  '',
+};
+function getImgTheme() {
+  const sel = localStorage.getItem('sc_img_theme') || 'design';
+  if (sel === 'custom') return localStorage.getItem('sc_img_custom') || IMG_THEMES.design;
+  return IMG_THEMES[sel] || IMG_THEMES.design;
+}
+function saveImgTheme() {
+  const sel = document.getElementById('cfgImgTheme')?.value || 'design';
+  localStorage.setItem('sc_img_theme', sel);
+  const customArea = document.getElementById('cfgImgCustomArea');
+  if (customArea) customArea.style.display = sel === 'custom' ? 'flex' : 'none';
+  if (sel === 'custom') localStorage.setItem('sc_img_custom', document.getElementById('cfgImgCustom')?.value?.trim()||'');
+}
+function loadImgThemeUI() {
+  const sel = localStorage.getItem('sc_img_theme') || 'design';
+  const el = document.getElementById('cfgImgTheme');
+  if (el) el.value = sel;
+  const customArea = document.getElementById('cfgImgCustomArea');
+  if (customArea) customArea.style.display = sel === 'custom' ? 'flex' : 'none';
+  const customTxt = document.getElementById('cfgImgCustom');
+  if (customTxt) customTxt.value = localStorage.getItem('sc_img_custom') || '';
+}
+
+// ── Puter login ──────────────────────────────────────────────────────────────
+async function puterLogin() {
+  try {
+    await puter.auth.signIn();
+    updatePuterStatus();
+    toast('✓ Connectat a Puter!');
+  } catch(e) { toast('Error Puter: ' + e.message); }
+}
+async function puterLogout() {
+  try { await puter.auth.signOut(); updatePuterStatus(); toast('Desconnectat de Puter'); } catch(e) {}
+}
+async function updatePuterStatus() {
+  try {
+    const ok = await puter.auth.isSignedIn();
+    const el = document.getElementById('puterStatus');
+    const lb = document.getElementById('puterLoginBtn');
+    const lo = document.getElementById('puterLogoutBtn');
+    if (ok) {
+      const u = await puter.auth.getUser();
+      if (el) el.innerHTML = '<span style="color:var(--green)">● ' + (u?.username||'usuari') + '</span>';
+      if (lb) lb.style.display = 'none';
+      if (lo) lo.style.display = 'inline-flex';
+    } else {
+      if (el) el.textContent = '○ No connectat';
+      if (lb) lb.style.display = 'inline-flex';
+      if (lo) lo.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+// ── Prompt engineering — basat en temàtica configurable ──────────────────────
+// Estratègia FLUX: cap instrucció negativa (les ignora), sinó context positiu fortíssim
 function buildImagePrompt(prompt, isStory) {
+  const theme = getImgTheme();
   const orient = isStory
-    ? 'vertical portrait 9:16 composition, tall format, suitable for Instagram Story'
-    : 'square 1:1 composition, centered subject, suitable for Instagram Post';
-  return [
-    prompt,
-    'professional graphic design photography',
-    'NO food, NO restaurant, NO plates, NO kitchen, NO cooking, NO drinks, NO dining',
-    'creative studio aesthetic, design tools, typography, branding, visual identity',
-    'clean modern design workspace',
-    'shot with a high-end DSLR camera',
-    'shallow depth of field',
-    'elegant natural lighting',
-    'rich vibrant colors',
-    'photorealistic, ultra detailed, 8k resolution',
-    orient,
-    'minimal clean background, editorial style'
-  ].join(', ');
+    ? 'vertical 9:16 portrait composition for Instagram Story'
+    : 'square 1:1 composition for Instagram Post';
+  return `${theme}, ${prompt}, professional photography, editorial style, ${orient}, shallow depth of field, elegant natural lighting, ultra detailed 8k resolution, clean minimal background`;
 }
 
 // Modelos Gemini con imagen, en orden de preferencia (gratuïts)
@@ -814,8 +911,6 @@ async function generateWithGemini(prompt, isStory) {
   const apiKey = getGeminiKey();
   if (!apiKey) throw new Error('No Gemini key');
   const fullPrompt = buildImagePrompt(prompt, isStory);
-
-  // Provar cada model fins trobar-ne un que funcioni
   let lastErr = null;
   for (const model of GEMINI_IMG_MODELS) {
     try {
@@ -826,7 +921,6 @@ async function generateWithGemini(prompt, isStory) {
     } catch(e) {
       console.warn(`❌ ${model}:`, e.message);
       lastErr = e;
-      // Si és un error d'autenticació (401/403) no té sentit provar més
       if (e.message.includes('401') || e.message.includes('403')) break;
     }
   }
@@ -835,40 +929,25 @@ async function generateWithGemini(prompt, isStory) {
 
 async function generateImageNb(prompt, isStory) {
   const geminiKey = getGeminiKey();
-
-  // 1r: Gemini si hi ha key configurada
   if (geminiKey) {
-    try {
-      const url = await generateWithGemini(prompt, isStory);
-      return url;
-    } catch(e) {
-      console.warn('Gemini falló, usant Puter FLUX com a fallback:', e.message);
+    try { return await generateWithGemini(prompt, isStory); }
+    catch(e) {
+      console.warn('Gemini falló:', e.message);
       toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant Puter...');
     }
   }
-
-  // 2n: Puter FLUX (gratuït amb compte Puter)
+  // Fallback: Puter FLUX
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const size = isStory ? '1024x1792' : '1024x1024';
-  const puterModels = [
-    'black-forest-labs/flux.1-schnell',
-    'black-forest-labs/flux-1-schnell',
-  ];
-
-  let lastErr = null;
-  for (const model of puterModels) {
-    try {
-      console.log('Provant Puter model:', model);
-      const imgEl = await puter.ai.txt2img(fullPrompt, { model, size });
-      if (imgEl?.src) { console.log('✅ Puter OK:', model); return imgEl.src; }
-      throw new Error('Sense src');
-    } catch(e) {
-      console.warn(`❌ Puter ${model}:`, e.message);
-      lastErr = e;
-      if (/credit|quota|limit/i.test(e.message||'')) break;
-    }
+  try {
+    const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
+    if (imgEl?.src) return imgEl.src;
+    throw new Error('Sense src');
+  } catch(e) {
+    if (/credit|quota|limit/i.test(e.message||''))
+      throw new Error('Puter sense crèdits. Inicia sessió a Puter (Configuració) o afegeix una Gemini API Key.');
+    throw new Error('Error generant: ' + e.message);
   }
-  throw new Error('No s\'ha pogut generar la imatge. Afegeix una Google Gemini API Key a Configuració → és gratuïta a aistudio.google.com');
 }
 
 function injectImg(cardId, url) {
@@ -1300,7 +1379,7 @@ function switchLibTab(tab, btn) {
 // =====================================================
 async function genProposals() {
   const ctx = document.getElementById('ctx').value.trim();
-  if (!ctx) { toast('⚠ Escriu el context (projecte, peça, campanya...)'); document.getElementById('ctx').focus(); return; }
+  if (!ctx) { toast('⚠ Escriu el context (plat, esdeveniment...)'); document.getElementById('ctx').focus(); return; }
 
   document.getElementById('genBtn').disabled = true;
   document.getElementById('propArea').style.display = 'none';
@@ -1316,7 +1395,7 @@ async function genProposals() {
   const cta      = document.getElementById('cfgCTA').value;
   const lang     = document.getElementById('cfgLang').value;
 
-  const steps = ['Analitzant el projecte...','Generant idees creatives...','Redactant textos...','Preparant propostes...'];
+  const steps = ['Analitzant el restaurant...','Generant idees creatives...','Redactant textos...','Preparant propostes...'];
   let si = 0;
   const iv = setInterval(() => { document.getElementById('lstep').textContent = steps[++si % steps.length]; }, 1800);
 
@@ -1325,10 +1404,9 @@ async function genProposals() {
   userMsg += 'Estudi/Client: ' + restName + '\nEspecialitat: ' + cuisine + '\nDescripció: ' + desc + '\n';
   userMsg += 'Idioma: ' + lang + '\nHashtags: ' + tags + '\nCTA: ' + cta + '\n';
   userMsg += 'Tipus de peça: ' + theme + '\nEstil comunicatiu: ' + tone + '\n';
-  userMsg += '*** BRIEFING (usa aquest context als textos, centrat en disseny gràfic, branding, identitat visual): ' + ctx + ' ***\n';
-  userMsg += 'Contextos típics: identitat de marca, branding, tipografia, color, packaging, disseny web, UX, motion, il·lustració, retol·lació.\n';
-  userMsg += 'IMPORTANT: NO mencions menjar, restaurants ni hosteleria en cap cas.\n';
-  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🎨","title":"Títol","caption":"Text 2-3 frases sobre disseny gràfic, sense hashtags","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed visual design / branding / creative workspace photo description for AI image generation (NO food, NO restaurant, NO kitchen)"}]}';
+  userMsg += '*** BRIEFING (usa aquest context als textos, NO facis referència a menjar ni hosteleria): ' + ctx + ' ***\n';
+  userMsg += 'Contextos típics: identitat de marca, branding, tipografia, color, packaging, disseny web, UX, motion, il·lustració.\n';
+  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🎨","title":"Títol","caption":"Text 2-3 frases sense hashtags, sobre disseny gràfic","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed visual design / branding / creative work photo description for AI generation (NO food, NO restaurant)"}]}';
 
   try {
     document.getElementById('lstep').textContent = 'Generant textos amb GPT-4o-mini...';
@@ -1356,14 +1434,14 @@ async function genProposals() {
 }
 
 function fallback(name, ctx) {
-  const c = ctx || 'identitat visual';
+  const c = ctx || 'plat especial';
   return [
-    {id:'p1',type:'post',emoji:'🎨',title:c+' · Branding',caption:`Cada marca té una veu pròpia. A ${name} creem identitats visuals que connecten i comuniquen. ${document.getElementById('cfgCTA')?.value||'Parlem!'}`,hashtags:'#disseny #branding #identitat',imagePrompt:`Professional branding design flat lay, brand identity elements, logo sketches, color palette swatches on clean white desk`},
-    {id:'p2',type:'story',emoji:'✏️',title:'Procés creatiu',caption:`Així és com donem vida a ${c} a ${name}. Cada detall compta.`,hashtags:'#disseny #procés #creativitat',imagePrompt:`Designer working on typography and branding sketches in creative studio, pencils and design tools`},
-    {id:'p3',type:'post',emoji:'🖋️',title:'Tipografia',caption:`La tipografia és la veu silenciosa de la marca. ${name} escull amb cura cada lletra.`,hashtags:'#tipografia #disseny #visual',imagePrompt:`Beautiful typography design layout, creative lettering on clean background, editorial design`},
-    {id:'p4',type:'story',emoji:'🎯',title:'Detall de marca',caption:`Els petits detalls marquen la diferència. ${c} ben executat transforma.`,hashtags:'#branding #detall #disseny',imagePrompt:`Close up detail of graphic design elements, brand identity components, minimalist design`},
-    {id:'p5',type:'post',emoji:'🌈',title:'Paleta de colors',caption:`Els colors parlen. A ${name} construïm paletes que evoquen emocions i reforcen la identitat.`,hashtags:'#color #disseny #branding',imagePrompt:`Color palette design concept, paint swatches and brand colors arranged artistically on white background`},
-    {id:'p6',type:'story',emoji:'💡',title:'Inspiració',caption:`La inspiració és el punt de partida. ${name} transforma idees en disseny impactant.`,hashtags:'#creativitat #disseny #inspiració',imagePrompt:`Creative design inspiration mood board, design workspace with sketches and visual references`}
+    {id:'p1',type:'post',emoji:'🍽️',title:c+' especial',caption:`Descobreix el nostre ${c} a ${name}. Ingredients frescos i sabor únic. ${document.getElementById('cfgCTA')?.value||'Reserva!'}`,hashtags:'#disseny #branding',imagePrompt:`Professional food photography of ${c}, natural light, rustic table`},
+    {id:'p2',type:'story',emoji:'👨‍🍳',title:'Preparació',caption:`Així preparem el nostre ${c} a ${name}. Tot fet amb cura i amor.`,hashtags:'#chef #cocina',imagePrompt:`Chef preparing ${c} in professional kitchen`},
+    {id:'p3',type:'post',emoji:'📸',title:'El plat estrella',caption:`El ${c} que tothom demana a ${name}. Vine a provar-lo!`,hashtags:'#foodie #restaurante',imagePrompt:`Beautiful ${c} on elegant plate overhead shot`},
+    {id:'p4',type:'story',emoji:'✨',title:'Detalls',caption:`Els petits detalls marquen la diferència. El nostre ${c} t\'espera.`,hashtags:'#gourmet',imagePrompt:`Close up detail ${c} food photography`},
+    {id:'p5',type:'post',emoji:'🔥',title:'Acabat de fer',caption:`${c} acabat de preparar per a tu a ${name}. Fresc cada dia.`,hashtags:'#fresh #km0',imagePrompt:`Fresh ${c} restaurant quality`},
+    {id:'p6',type:'story',emoji:'❤️',title:'Gràcies',caption:`Gràcies per triar ${name}. El ${c} és el nostre homenatge al bon menjar.`,hashtags:'#gracias #restaurante',imagePrompt:`Happy dining restaurant warm atmosphere ${c}`}
   ];
 }
 
@@ -1416,7 +1494,7 @@ function updSelUI() {
 function openPrev(id) {
   const p = proposals.find(x => x.id === id); if (!p) return;
   editP = p;
-  const ig = document.getElementById('cfgIG').value || '@estudidisseny';
+  const ig = document.getElementById('cfgIG').value || '@mi_restaurante';
   document.getElementById('mpTitle').textContent = p.title;
   document.getElementById('mpSub').textContent = p.type === 'post' ? 'Vista previa · Post' : 'Vista previa · Story';
   document.getElementById('mpCap').value = p.caption;
@@ -1627,6 +1705,8 @@ async function initApp() {
     const savedIgToken = localStorage.getItem('sc_ig_token');
     if (savedIgToken && document.getElementById('cfgIgToken')) document.getElementById('cfgIgToken').value = savedIgToken;
     updateIgConnectUI();
+    loadImgThemeUI();
+    updatePuterStatus();
   } catch(err) {
     setInitMsg('Error: ' + err.message);
     console.error(err);
@@ -1686,7 +1766,7 @@ async function loadRestaurant(id) {
   if (webEl && d.web) webEl.value = d.web;
   // Actualitzar info librería
   const li = document.getElementById('libRestInfo');
-  if (li) li.textContent = 'Imatges de ' + (d.name||'el client actiu');
+  if (li) li.textContent = 'Imatges de ' + (d.name||'el restaurant actiu');
   scheduled = (d.scheduled||[]).map(s=>({...s}));
   updBadge(); renderCal();
   // Restaurar imatges dels posts programats des d'IndexedDB
@@ -1715,10 +1795,10 @@ async function changeRest() {
 }
 
 async function addRest() {
-  const n = prompt('Nom del nou client:'); if (!n) return;
+  const n = prompt('Nombre del nuevo restaurante:'); if (!n) return;
   const data = {
-    name:n,cuisine:'Especialitat / sector',desc:'Descripció.',web:'',ig:'@'+n.toLowerCase().replace(/\s+/g,''),
-    lang:'Español',freq:'Diaria',tags:'#disseny #branding',cta:'Parlem!',
+    name:n,cuisine:'Especialitat / sector',desc:'Descripción.',web:'',ig:'@'+n.toLowerCase().replace(/\s+/g,''),
+    lang:'Español',freq:'Diaria',tags:'#restaurante',cta:'¡Reserva!',
     scheduled:[],createdAt:firebase.firestore.FieldValue.serverTimestamp()
   };
   const ref = await db.collection('users').doc(currentUser.uid).collection('restaurants').add(data);
@@ -1971,7 +2051,7 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 async function deleteCurrentRest() {
   const rest = restaurants.find(r => r.id === currentRestId);
   if (!rest) return;
-  if (restaurants.length <= 1) { toast("❌ No pots eliminar l'únic client"); return; }
+  if (restaurants.length <= 1) { toast("❌ No pots eliminar l'únic restaurant"); return; }
   if (!confirm('¿Eliminar el client "' + rest.name + '"? Esta acción no se puede deshacer.')) return;
   try {
     setSyncState('spin', 'Eliminant...');
