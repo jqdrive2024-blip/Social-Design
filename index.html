@@ -511,7 +511,7 @@ select option{background:var(--surface2)}
         <div class="bo-gen-area">
           <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb Nanobanana</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: plat de bravas crujients amb salsa especial de la casa, fotografia professional de menjar..."></textarea>
+            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: identitat de marca minimalista sobre fons blanc, eines de disseny gràfic, tipografia creativa..."></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="genImgRatio" style="padding:8px 12px;font-size:13px;width:160px">
                 <option value="1:1">Post (1:1)</option>
@@ -760,23 +760,24 @@ function getGeminiKey() {
   return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
 }
 
-// Prompt engineering para Gemini Imagen 3 — mucho más detallado
+// Prompt engineering per a disseny gràfic — sense menjar, centrat en creativitat visual
 function buildImagePrompt(prompt, isStory) {
   const orient = isStory
-    ? 'vertical portrait 9:16 composition, tall format'
-    : 'square 1:1 composition, centered subject';
+    ? 'vertical portrait 9:16 composition, tall format, suitable for Instagram Story'
+    : 'square 1:1 composition, centered subject, suitable for Instagram Post';
   return [
     prompt,
-    'professional creative design photography, NO food, NO restaurant',
-    'appetizing and delicious looking',
-    'restaurant quality plating',
+    'professional graphic design photography',
+    'NO food, NO restaurant, NO plates, NO kitchen, NO cooking',
+    'creative studio aesthetic',
+    'clean modern design',
     'shot with a high-end DSLR camera',
     'shallow depth of field',
-    'warm natural side lighting',
+    'elegant natural lighting',
     'rich vibrant colors',
     'photorealistic, ultra detailed, 8k resolution',
     orient,
-    'clean background, editorial style'
+    'minimal clean background, editorial style'
   ].join(', ');
 }
 
@@ -846,14 +847,39 @@ async function generateImageNb(prompt, isStory) {
     }
   }
 
-  // Fallback: Puter FLUX.1-schnell (gratuït)
+  // Fallback: Puter FLUX (gratuït amb compte Puter)
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const size = isStory ? '1024x1792' : '1024x1024';
-  const imgEl = await puter.ai.txt2img(fullPrompt, {
-    model: 'black-forest-labs/flux.1-schnell',
-    size
-  });
-  return imgEl.src;
+
+  // Intentar diversos models de Puter en ordre
+  const puterModels = [
+    'black-forest-labs/flux.1-schnell',
+    'black-forest-labs/flux-1-schnell',
+    'stabilityai/stable-diffusion-xl-base-1.0',
+  ];
+
+  let lastErr = null;
+  for (const model of puterModels) {
+    try {
+      console.log('Provant Puter model:', model);
+      const imgEl = await puter.ai.txt2img(fullPrompt, { model, size });
+      if (imgEl?.src) {
+        console.log('✅ Puter OK amb:', model);
+        return imgEl.src;
+      }
+      throw new Error('Sense src a la resposta');
+    } catch(e) {
+      console.warn(`❌ Puter ${model}:`, e.message);
+      lastErr = e;
+      // Si és error de crèdits o quota, no té sentit provar més models
+      if (e.message?.toLowerCase().includes('credit') ||
+          e.message?.toLowerCase().includes('quota') ||
+          e.message?.toLowerCase().includes('limit')) {
+        throw new Error('Puter sense crèdits disponibles. Afegeix una Google Gemini API Key a Configuració per continuar generant imatges (és gratuïta a aistudio.google.com).');
+      }
+    }
+  }
+  throw new Error('No s\'ha pogut generar la imatge. ' + (lastErr?.message || '') + ' · Afegeix una Gemini API Key a Configuració.');
 }
 
 function injectImg(cardId, url) {
