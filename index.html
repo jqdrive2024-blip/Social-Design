@@ -557,11 +557,57 @@ select option{background:var(--surface2)}
             <div class="fg">
               <label>Google Gemini API Key</label>
               <input type="password" id="cfgGeminiKey" placeholder="AIza..." autocomplete="off">
-              <span style="font-size:11px;color:var(--text3);margin-top:3px">Para Imagen 3 · Consíguela gratis en <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a></span>
+              <span style="font-size:11px;color:var(--text3);margin-top:3px">Per generar imatges · Gratuïta a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a></span>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
               <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
-              <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar este restaurante</button>
+              <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar aquest client</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Generació d'imatges amb IA -->
+        <div class="cfgcard" style="grid-column:1/-1">
+          <h3>🎨 Generació d'imatges amb IA</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:14px">
+              <div class="fg">
+                <label>Temàtica visual per a les imatges</label>
+                <select id="cfgImgTheme" onchange="saveImgTheme()">
+                  <option value="design">🎨 Disseny gràfic i branding</option>
+                  <option value="arch">🏛️ Arquitectura i interiorisme</option>
+                  <option value="fashion">👗 Moda i lifestyle</option>
+                  <option value="tech">💻 Tecnologia i startup</option>
+                  <option value="nature">🌿 Natura i sostenibilitat</option>
+                  <option value="art">🖼️ Art i il·lustració</option>
+                  <option value="custom">✏️ Personalitzada (escriu avall)</option>
+                </select>
+              </div>
+              <div class="fg" id="cfgImgCustomArea" style="display:none">
+                <label>Descripció del tipus d'imatge que vols</label>
+                <textarea rows="2" id="cfgImgCustom" placeholder="Ex: fotografia de producte cosmètic minimalista, fons pastel, llum natural..." onchange="saveImgTheme()"></textarea>
+              </div>
+              <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border)">
+                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Ordre de generació:</div>
+                <div style="font-size:12px;color:var(--text2);line-height:1.8">
+                  1️⃣ <strong style="color:var(--accent)">Gemini</strong> (si tens API Key) — millor qualitat<br>
+                  2️⃣ <strong style="color:var(--text2)">Puter FLUX</strong> — gratuït amb compte Puter
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)">
+                <div style="font-size:13px;font-weight:500;margin-bottom:8px">Compte Puter</div>
+                <div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.6">Inicia sessió per usar els teus crèdits FLUX i evitar límits.</div>
+                <div id="puterStatus" style="font-size:12px;color:var(--text3);margin-bottom:10px">○ Estat desconegut</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button id="puterLoginBtn" onclick="puterLogin()" class="bp" style="font-size:12px;padding:8px 14px">Iniciar sessió a Puter</button>
+                  <button id="puterLogoutBtn" onclick="puterLogout()" class="bs" style="font-size:12px;padding:8px 14px;display:none">Desconnectar</button>
+                </div>
+              </div>
+              <div style="padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
+                <p style="font-size:11px;color:var(--text3);line-height:1.7">💡 Sense Gemini Key, Puter usa <strong style="color:var(--text2)">FLUX.1-schnell</strong> gratuïtament. Iniciant sessió a Puter els crèdits no s'esgoten tan ràpid.</p>
+              </div>
             </div>
           </div>
         </div>
@@ -760,24 +806,76 @@ function getGeminiKey() {
   return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
 }
 
-// Prompt engineering para Gemini Imagen 3 — mucho más detallado
+// ── Temàtiques d'imatge ──────────────────────────────────────────────────────
+const IMG_THEMES = {
+  design:  'graphic design studio flat lay, branding elements, typography books, Pantone swatches, design markers, creative workspace',
+  arch:    'modern architecture interior, clean lines, minimalist space, natural light, architectural details',
+  fashion: 'fashion editorial lifestyle photography, elegant clothing, studio lighting, minimalist background',
+  tech:    'modern tech workspace, laptop, clean desk setup, minimalist office, soft ambient lighting',
+  nature:  'nature and sustainability photography, green plants, natural textures, eco-friendly materials, soft daylight',
+  art:     'art studio with canvas and paint brushes, illustration process, creative workspace, artistic tools and materials',
+  custom:  '',
+};
+function getImgTheme() {
+  const sel = localStorage.getItem('sc_img_theme') || 'design';
+  if (sel === 'custom') return localStorage.getItem('sc_img_custom') || IMG_THEMES.design;
+  return IMG_THEMES[sel] || IMG_THEMES.design;
+}
+function saveImgTheme() {
+  const sel = document.getElementById('cfgImgTheme')?.value || 'design';
+  localStorage.setItem('sc_img_theme', sel);
+  const customArea = document.getElementById('cfgImgCustomArea');
+  if (customArea) customArea.style.display = sel === 'custom' ? 'flex' : 'none';
+  if (sel === 'custom') localStorage.setItem('sc_img_custom', document.getElementById('cfgImgCustom')?.value?.trim()||'');
+}
+function loadImgThemeUI() {
+  const sel = localStorage.getItem('sc_img_theme') || 'design';
+  const el = document.getElementById('cfgImgTheme');
+  if (el) el.value = sel;
+  const customArea = document.getElementById('cfgImgCustomArea');
+  if (customArea) customArea.style.display = sel === 'custom' ? 'flex' : 'none';
+  const customTxt = document.getElementById('cfgImgCustom');
+  if (customTxt) customTxt.value = localStorage.getItem('sc_img_custom') || '';
+}
+
+// ── Puter login ──────────────────────────────────────────────────────────────
+async function puterLogin() {
+  try {
+    await puter.auth.signIn();
+    updatePuterStatus();
+    toast('✓ Connectat a Puter!');
+  } catch(e) { toast('Error Puter: ' + e.message); }
+}
+async function puterLogout() {
+  try { await puter.auth.signOut(); updatePuterStatus(); toast('Desconnectat de Puter'); } catch(e) {}
+}
+async function updatePuterStatus() {
+  try {
+    const ok = await puter.auth.isSignedIn();
+    const el = document.getElementById('puterStatus');
+    const lb = document.getElementById('puterLoginBtn');
+    const lo = document.getElementById('puterLogoutBtn');
+    if (ok) {
+      const u = await puter.auth.getUser();
+      if (el) el.innerHTML = '<span style="color:var(--green)">● ' + (u?.username||'usuari') + '</span>';
+      if (lb) lb.style.display = 'none';
+      if (lo) lo.style.display = 'inline-flex';
+    } else {
+      if (el) el.textContent = '○ No connectat';
+      if (lb) lb.style.display = 'inline-flex';
+      if (lo) lo.style.display = 'none';
+    }
+  } catch(e) {}
+}
+
+// ── Prompt engineering — basat en temàtica configurable ──────────────────────
+// Estratègia FLUX: cap instrucció negativa (les ignora), sinó context positiu fortíssim
 function buildImagePrompt(prompt, isStory) {
+  const theme = getImgTheme();
   const orient = isStory
-    ? 'vertical portrait 9:16 composition, tall format'
-    : 'square 1:1 composition, centered subject';
-  return [
-    prompt,
-    'professional creative design photography, NO food, NO restaurant',
-    'appetizing and delicious looking',
-    'restaurant quality plating',
-    'shot with a high-end DSLR camera',
-    'shallow depth of field',
-    'warm natural side lighting',
-    'rich vibrant colors',
-    'photorealistic, ultra detailed, 8k resolution',
-    orient,
-    'clean background, editorial style'
-  ].join(', ');
+    ? 'vertical 9:16 portrait composition for Instagram Story'
+    : 'square 1:1 composition for Instagram Post';
+  return `${theme}, ${prompt}, professional photography, editorial style, ${orient}, shallow depth of field, elegant natural lighting, ultra detailed 8k resolution, clean minimal background`;
 }
 
 // Modelos Gemini con imagen, en orden de preferencia (gratuïts)
@@ -813,8 +911,6 @@ async function generateWithGemini(prompt, isStory) {
   const apiKey = getGeminiKey();
   if (!apiKey) throw new Error('No Gemini key');
   const fullPrompt = buildImagePrompt(prompt, isStory);
-
-  // Provar cada model fins trobar-ne un que funcioni
   let lastErr = null;
   for (const model of GEMINI_IMG_MODELS) {
     try {
@@ -825,7 +921,6 @@ async function generateWithGemini(prompt, isStory) {
     } catch(e) {
       console.warn(`❌ ${model}:`, e.message);
       lastErr = e;
-      // Si és un error d'autenticació (401/403) no té sentit provar més
       if (e.message.includes('401') || e.message.includes('403')) break;
     }
   }
@@ -834,26 +929,25 @@ async function generateWithGemini(prompt, isStory) {
 
 async function generateImageNb(prompt, isStory) {
   const geminiKey = getGeminiKey();
-
-  // Intentar Gemini/Imagen 3 si hay key
   if (geminiKey) {
-    try {
-      const url = await generateWithGemini(prompt, isStory);
-      return url;
-    } catch(e) {
-      console.warn('Gemini falló, usando Puter FLUX como fallback:', e.message);
-      toast('⚠️ Gemini: ' + e.message.slice(0,50) + ' · Usant Puter...');
+    try { return await generateWithGemini(prompt, isStory); }
+    catch(e) {
+      console.warn('Gemini falló:', e.message);
+      toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant Puter...');
     }
   }
-
-  // Fallback: Puter FLUX.1-schnell (gratuït)
+  // Fallback: Puter FLUX
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const size = isStory ? '1024x1792' : '1024x1024';
-  const imgEl = await puter.ai.txt2img(fullPrompt, {
-    model: 'black-forest-labs/flux.1-schnell',
-    size
-  });
-  return imgEl.src;
+  try {
+    const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
+    if (imgEl?.src) return imgEl.src;
+    throw new Error('Sense src');
+  } catch(e) {
+    if (/credit|quota|limit/i.test(e.message||''))
+      throw new Error('Puter sense crèdits. Inicia sessió a Puter (Configuració) o afegeix una Gemini API Key.');
+    throw new Error('Error generant: ' + e.message);
+  }
 }
 
 function injectImg(cardId, url) {
@@ -1611,6 +1705,8 @@ async function initApp() {
     const savedIgToken = localStorage.getItem('sc_ig_token');
     if (savedIgToken && document.getElementById('cfgIgToken')) document.getElementById('cfgIgToken').value = savedIgToken;
     updateIgConnectUI();
+    loadImgThemeUI();
+    updatePuterStatus();
   } catch(err) {
     setInitMsg('Error: ' + err.message);
     console.error(err);
@@ -1853,16 +1949,6 @@ function showSec(n,btn) {
     if (ig && document.getElementById('igUsername')) document.getElementById('igUsername').value = ig;
     if (web && document.getElementById('webUrl')) document.getElementById('webUrl').value = web;
   }
-}
-
-async function clearPendingPosts() {
-  if (!confirm('Eliminar totes les publicacions pendents del servidor?')) return;
-  try {
-    const res = await fetch(PUBLISHER_URL + '?action=clear&secret=' + CRON_SECRET);
-    const data = await res.json();
-    toast(data.success ? '✓ Pendents eliminats' : '✗ Error: ' + data.error);
-    checkPublisherStatus();
-  } catch(e) { toast('✗ Error: ' + e.message); }
 }
 
 async function checkPublisherStatus() {
