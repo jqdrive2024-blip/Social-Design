@@ -583,6 +583,16 @@ select option{background:var(--surface2)}
                   <option value="custom">✏️ Personalitzada (escriu avall)</option>
                 </select>
               </div>
+              <div class="fg">
+                <label>Model de generació d'imatges (Puter)</label>
+                <select id="cfgImgModel" onchange="saveImgModel()">
+                  <option value="black-forest-labs/flux.1-schnell">⚡ FLUX.1 Schnell (gratuït, ràpid)</option>
+                  <option value="black-forest-labs/flux.1-dev">🎨 FLUX.1 Dev (millor qualitat)</option>
+                  <option value="stability-ai/stable-diffusion-xl">🖼️ Stable Diffusion XL</option>
+                  <option value="dalle-3">🤖 DALL-E 3 (requereix API Key)</option>
+                </select>
+                <span style="font-size:11px;color:var(--text3);margin-top:3px">Els models que requereixen crèdits només funcionen si tens sessió iniciada a Puter.</span>
+              </div>
               <div class="fg" id="cfgImgCustomArea" style="display:none">
                 <label>Descripció del tipus d'imatge que vols</label>
                 <textarea rows="2" id="cfgImgCustom" placeholder="Ex: fotografia de producte cosmètic minimalista, fons pastel, llum natural..." onchange="saveImgTheme()"></textarea>
@@ -657,6 +667,7 @@ select option{background:var(--surface2)}
                 <button onclick="checkPublisherStatus()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap">↻ Refrescar estat</button>
                 <button onclick="repushAllScheduled()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap" title="Torna a enviar tots els posts pendents al servidor">↑ Reenviar tots</button>
                 <button onclick="cleanTestPosts()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap;color:var(--red);border-color:rgba(232,126,126,.5)" title="Elimina els posts TEST_ del planificador">🗑 Netejar tests</button>
+                <button onclick="clearUploadsFolder()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap;color:var(--red);border-color:rgba(232,126,126,.5)" title="Elimina TOTES les imatges de la carpeta uploads/">🗑 Netejar uploads</button>
               </div>
             </div>
             <div style="margin-top:10px;padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
@@ -838,6 +849,20 @@ function loadImgThemeUI() {
   if (customTxt) customTxt.value = localStorage.getItem('sc_img_custom') || '';
 }
 
+// ── Model de generació d'imatges ─────────────────────────────────────────────
+function saveImgModel() {
+  const model = document.getElementById('cfgImgModel')?.value || 'black-forest-labs/flux.1-schnell';
+  localStorage.setItem('sc_img_model', model);
+}
+function loadImgModelUI() {
+  const model = localStorage.getItem('sc_img_model') || 'black-forest-labs/flux.1-schnell';
+  const el = document.getElementById('cfgImgModel');
+  if (el) el.value = model;
+}
+function getImgModel() {
+  return localStorage.getItem('sc_img_model') || 'black-forest-labs/flux.1-schnell';
+}
+
 // ── Puter login ──────────────────────────────────────────────────────────────
 async function puterLogin() {
   try {
@@ -929,23 +954,35 @@ async function generateWithGemini(prompt, isStory) {
 
 async function generateImageNb(prompt, isStory) {
   const geminiKey = getGeminiKey();
-  if (geminiKey) {
+  const selectedModel = getImgModel();
+
+  // Si el model seleccionat és DALL-E 3, usar Gemini (DALL-E requereix API d'OpenAI)
+  if (selectedModel === 'dalle-3' && geminiKey) {
     try { return await generateWithGemini(prompt, isStory); }
     catch(e) {
       console.warn('Gemini falló:', e.message);
-      toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant Puter...');
+      toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant FLUX...');
     }
   }
-  // Fallback: Puter FLUX
+
+  // Fallback: Puter amb el model seleccionat
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const size = isStory ? '1024x1792' : '1024x1024';
   try {
-    const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
+    const imgEl = await puter.ai.txt2img(fullPrompt, { model: selectedModel, size });
     if (imgEl?.src) return imgEl.src;
     throw new Error('Sense src');
   } catch(e) {
-    if (/credit|quota|limit/i.test(e.message||''))
-      throw new Error('Puter sense crèdits. Inicia sessió a Puter (Configuració) o afegeix una Gemini API Key.');
+    // Si el model seleccionat falla per crèdits, intentar amb schnell (gratuït)
+    if (/credit|quota|limit/i.test(e.message||'') && selectedModel !== 'black-forest-labs/flux.1-schnell') {
+      toast('⚠️ ' + selectedModel + ' sense crèdits. Provant FLUX Schnell gratuït...');
+      try {
+        const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
+        if (imgEl?.src) return imgEl.src;
+      } catch(e2) {
+        throw new Error('Puter sense crèdits. Inicia sessió a Puter (Configuració) o afegeix una Gemini API Key.');
+      }
+    }
     throw new Error('Error generant: ' + e.message);
   }
 }
@@ -1706,6 +1743,7 @@ async function initApp() {
     if (savedIgToken && document.getElementById('cfgIgToken')) document.getElementById('cfgIgToken').value = savedIgToken;
     updateIgConnectUI();
     loadImgThemeUI();
+    loadImgModelUI();
     updatePuterStatus();
   } catch(err) {
     setInitMsg('Error: ' + err.message);
@@ -1979,6 +2017,29 @@ async function cleanTestPosts() {
     const data = await res.json();
     if (data.success) {
       toast('✓ Posts de test eliminats. Pendents restants: ' + data.pending);
+      checkPublisherStatus();
+    } else {
+      toast('Error: ' + (data.error || 'desconegut'));
+    }
+  } catch(e) {
+    toast('Error: ' + e.message);
+  }
+}
+
+// ── Netejar tota la carpeta uploads/ ─────────────────────────────────────────
+async function clearUploadsFolder() {
+  if (!confirm('⚠️ ATENCIÓ: Això eliminarà TOTES les imatges de la carpeta uploads/.\n\nEstàs segur?')) return;
+  if (!confirm('Segona confirmació: Vols eliminar totes les imatges? Aquesta acció no es pot desfer.')) return;
+
+  try {
+    const res = await fetch(PUBLISHER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: CRON_SECRET, action: 'clear_uploads' })
+    });
+    const data = await res.json();
+    if (data.success) {
+      toast('✓ ' + data.message);
       checkPublisherStatus();
     } else {
       toast('Error: ' + (data.error || 'desconegut'));
