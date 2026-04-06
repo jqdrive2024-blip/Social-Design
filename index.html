@@ -511,7 +511,7 @@ select option{background:var(--surface2)}
         <div class="bo-gen-area">
           <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb Nanobanana</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: identitat de marca minimalista sobre fons blanc, eines de disseny gràfic, tipografia creativa..."></textarea>
+            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: identitat de marca minimalista, eines de disseny gràfic sobre escriptori, tipografia creativa..."></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="genImgRatio" style="padding:8px 12px;font-size:13px;width:160px">
                 <option value="1:1">Post (1:1)</option>
@@ -561,7 +561,7 @@ select option{background:var(--surface2)}
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
               <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
-              <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar este restaurante</button>
+              <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar aquest client</button>
             </div>
           </div>
         </div>
@@ -760,7 +760,7 @@ function getGeminiKey() {
   return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
 }
 
-// Prompt engineering per a disseny gràfic — sense menjar, centrat en creativitat visual
+// Prompt engineering per a disseny gràfic — sense menjar
 function buildImagePrompt(prompt, isStory) {
   const orient = isStory
     ? 'vertical portrait 9:16 composition, tall format, suitable for Instagram Story'
@@ -768,9 +768,9 @@ function buildImagePrompt(prompt, isStory) {
   return [
     prompt,
     'professional graphic design photography',
-    'NO food, NO restaurant, NO plates, NO kitchen, NO cooking',
-    'creative studio aesthetic',
-    'clean modern design',
+    'NO food, NO restaurant, NO plates, NO kitchen, NO cooking, NO drinks, NO dining',
+    'creative studio aesthetic, design tools, typography, branding, visual identity',
+    'clean modern design workspace',
     'shot with a high-end DSLR camera',
     'shallow depth of field',
     'elegant natural lighting',
@@ -836,26 +836,23 @@ async function generateWithGemini(prompt, isStory) {
 async function generateImageNb(prompt, isStory) {
   const geminiKey = getGeminiKey();
 
-  // Intentar Gemini/Imagen 3 si hay key
+  // 1r: Gemini si hi ha key configurada
   if (geminiKey) {
     try {
       const url = await generateWithGemini(prompt, isStory);
       return url;
     } catch(e) {
-      console.warn('Gemini falló, usando Puter FLUX como fallback:', e.message);
-      toast('⚠️ Gemini: ' + e.message.slice(0,50) + ' · Usant Puter...');
+      console.warn('Gemini falló, usant Puter FLUX com a fallback:', e.message);
+      toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant Puter...');
     }
   }
 
-  // Fallback: Puter FLUX (gratuït amb compte Puter)
+  // 2n: Puter FLUX (gratuït amb compte Puter)
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const size = isStory ? '1024x1792' : '1024x1024';
-
-  // Intentar diversos models de Puter en ordre
   const puterModels = [
     'black-forest-labs/flux.1-schnell',
     'black-forest-labs/flux-1-schnell',
-    'stabilityai/stable-diffusion-xl-base-1.0',
   ];
 
   let lastErr = null;
@@ -863,23 +860,15 @@ async function generateImageNb(prompt, isStory) {
     try {
       console.log('Provant Puter model:', model);
       const imgEl = await puter.ai.txt2img(fullPrompt, { model, size });
-      if (imgEl?.src) {
-        console.log('✅ Puter OK amb:', model);
-        return imgEl.src;
-      }
-      throw new Error('Sense src a la resposta');
+      if (imgEl?.src) { console.log('✅ Puter OK:', model); return imgEl.src; }
+      throw new Error('Sense src');
     } catch(e) {
       console.warn(`❌ Puter ${model}:`, e.message);
       lastErr = e;
-      // Si és error de crèdits o quota, no té sentit provar més models
-      if (e.message?.toLowerCase().includes('credit') ||
-          e.message?.toLowerCase().includes('quota') ||
-          e.message?.toLowerCase().includes('limit')) {
-        throw new Error('Puter sense crèdits disponibles. Afegeix una Google Gemini API Key a Configuració per continuar generant imatges (és gratuïta a aistudio.google.com).');
-      }
+      if (/credit|quota|limit/i.test(e.message||'')) break;
     }
   }
-  throw new Error('No s\'ha pogut generar la imatge. ' + (lastErr?.message || '') + ' · Afegeix una Gemini API Key a Configuració.');
+  throw new Error('No s\'ha pogut generar la imatge. Afegeix una Google Gemini API Key a Configuració → és gratuïta a aistudio.google.com');
 }
 
 function injectImg(cardId, url) {
@@ -1311,7 +1300,7 @@ function switchLibTab(tab, btn) {
 // =====================================================
 async function genProposals() {
   const ctx = document.getElementById('ctx').value.trim();
-  if (!ctx) { toast('⚠ Escriu el context (plat, esdeveniment...)'); document.getElementById('ctx').focus(); return; }
+  if (!ctx) { toast('⚠ Escriu el context (projecte, peça, campanya...)'); document.getElementById('ctx').focus(); return; }
 
   document.getElementById('genBtn').disabled = true;
   document.getElementById('propArea').style.display = 'none';
@@ -1327,7 +1316,7 @@ async function genProposals() {
   const cta      = document.getElementById('cfgCTA').value;
   const lang     = document.getElementById('cfgLang').value;
 
-  const steps = ['Analitzant el restaurant...','Generant idees creatives...','Redactant textos...','Preparant propostes...'];
+  const steps = ['Analitzant el projecte...','Generant idees creatives...','Redactant textos...','Preparant propostes...'];
   let si = 0;
   const iv = setInterval(() => { document.getElementById('lstep').textContent = steps[++si % steps.length]; }, 1800);
 
@@ -1336,9 +1325,10 @@ async function genProposals() {
   userMsg += 'Estudi/Client: ' + restName + '\nEspecialitat: ' + cuisine + '\nDescripció: ' + desc + '\n';
   userMsg += 'Idioma: ' + lang + '\nHashtags: ' + tags + '\nCTA: ' + cta + '\n';
   userMsg += 'Tipus de peça: ' + theme + '\nEstil comunicatiu: ' + tone + '\n';
-  userMsg += '*** BRIEFING (usa aquest context als textos, NO facis referència a menjar ni hosteleria): ' + ctx + ' ***\n';
-  userMsg += 'Contextos típics: identitat de marca, branding, tipografia, color, packaging, disseny web, UX, motion, il·lustració.\n';
-  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🎨","title":"Títol","caption":"Text 2-3 frases sense hashtags, sobre disseny gràfic","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed visual design / branding / creative work photo description for AI generation (NO food, NO restaurant)"}]}';
+  userMsg += '*** BRIEFING (usa aquest context als textos, centrat en disseny gràfic, branding, identitat visual): ' + ctx + ' ***\n';
+  userMsg += 'Contextos típics: identitat de marca, branding, tipografia, color, packaging, disseny web, UX, motion, il·lustració, retol·lació.\n';
+  userMsg += 'IMPORTANT: NO mencions menjar, restaurants ni hosteleria en cap cas.\n';
+  userMsg += 'JSON sense markdown:\n{"proposals":[{"id":"p1","type":"post","emoji":"🎨","title":"Títol","caption":"Text 2-3 frases sobre disseny gràfic, sense hashtags","hashtags":"#tag1 #tag2 #tag3","imagePrompt":"English: detailed visual design / branding / creative workspace photo description for AI image generation (NO food, NO restaurant, NO kitchen)"}]}';
 
   try {
     document.getElementById('lstep').textContent = 'Generant textos amb GPT-4o-mini...';
@@ -1366,14 +1356,14 @@ async function genProposals() {
 }
 
 function fallback(name, ctx) {
-  const c = ctx || 'plat especial';
+  const c = ctx || 'identitat visual';
   return [
-    {id:'p1',type:'post',emoji:'🍽️',title:c+' especial',caption:`Descobreix el nostre ${c} a ${name}. Ingredients frescos i sabor únic. ${document.getElementById('cfgCTA')?.value||'Reserva!'}`,hashtags:'#disseny #branding',imagePrompt:`Professional food photography of ${c}, natural light, rustic table`},
-    {id:'p2',type:'story',emoji:'👨‍🍳',title:'Preparació',caption:`Així preparem el nostre ${c} a ${name}. Tot fet amb cura i amor.`,hashtags:'#chef #cocina',imagePrompt:`Chef preparing ${c} in professional kitchen`},
-    {id:'p3',type:'post',emoji:'📸',title:'El plat estrella',caption:`El ${c} que tothom demana a ${name}. Vine a provar-lo!`,hashtags:'#foodie #restaurante',imagePrompt:`Beautiful ${c} on elegant plate overhead shot`},
-    {id:'p4',type:'story',emoji:'✨',title:'Detalls',caption:`Els petits detalls marquen la diferència. El nostre ${c} t\'espera.`,hashtags:'#gourmet',imagePrompt:`Close up detail ${c} food photography`},
-    {id:'p5',type:'post',emoji:'🔥',title:'Acabat de fer',caption:`${c} acabat de preparar per a tu a ${name}. Fresc cada dia.`,hashtags:'#fresh #km0',imagePrompt:`Fresh ${c} restaurant quality`},
-    {id:'p6',type:'story',emoji:'❤️',title:'Gràcies',caption:`Gràcies per triar ${name}. El ${c} és el nostre homenatge al bon menjar.`,hashtags:'#gracias #restaurante',imagePrompt:`Happy dining restaurant warm atmosphere ${c}`}
+    {id:'p1',type:'post',emoji:'🎨',title:c+' · Branding',caption:`Cada marca té una veu pròpia. A ${name} creem identitats visuals que connecten i comuniquen. ${document.getElementById('cfgCTA')?.value||'Parlem!'}`,hashtags:'#disseny #branding #identitat',imagePrompt:`Professional branding design flat lay, brand identity elements, logo sketches, color palette swatches on clean white desk`},
+    {id:'p2',type:'story',emoji:'✏️',title:'Procés creatiu',caption:`Així és com donem vida a ${c} a ${name}. Cada detall compta.`,hashtags:'#disseny #procés #creativitat',imagePrompt:`Designer working on typography and branding sketches in creative studio, pencils and design tools`},
+    {id:'p3',type:'post',emoji:'🖋️',title:'Tipografia',caption:`La tipografia és la veu silenciosa de la marca. ${name} escull amb cura cada lletra.`,hashtags:'#tipografia #disseny #visual',imagePrompt:`Beautiful typography design layout, creative lettering on clean background, editorial design`},
+    {id:'p4',type:'story',emoji:'🎯',title:'Detall de marca',caption:`Els petits detalls marquen la diferència. ${c} ben executat transforma.`,hashtags:'#branding #detall #disseny',imagePrompt:`Close up detail of graphic design elements, brand identity components, minimalist design`},
+    {id:'p5',type:'post',emoji:'🌈',title:'Paleta de colors',caption:`Els colors parlen. A ${name} construïm paletes que evoquen emocions i reforcen la identitat.`,hashtags:'#color #disseny #branding',imagePrompt:`Color palette design concept, paint swatches and brand colors arranged artistically on white background`},
+    {id:'p6',type:'story',emoji:'💡',title:'Inspiració',caption:`La inspiració és el punt de partida. ${name} transforma idees en disseny impactant.`,hashtags:'#creativitat #disseny #inspiració',imagePrompt:`Creative design inspiration mood board, design workspace with sketches and visual references`}
   ];
 }
 
@@ -1426,7 +1416,7 @@ function updSelUI() {
 function openPrev(id) {
   const p = proposals.find(x => x.id === id); if (!p) return;
   editP = p;
-  const ig = document.getElementById('cfgIG').value || '@mi_restaurante';
+  const ig = document.getElementById('cfgIG').value || '@estudidisseny';
   document.getElementById('mpTitle').textContent = p.title;
   document.getElementById('mpSub').textContent = p.type === 'post' ? 'Vista previa · Post' : 'Vista previa · Story';
   document.getElementById('mpCap').value = p.caption;
@@ -1696,7 +1686,7 @@ async function loadRestaurant(id) {
   if (webEl && d.web) webEl.value = d.web;
   // Actualitzar info librería
   const li = document.getElementById('libRestInfo');
-  if (li) li.textContent = 'Imatges de ' + (d.name||'el restaurant actiu');
+  if (li) li.textContent = 'Imatges de ' + (d.name||'el client actiu');
   scheduled = (d.scheduled||[]).map(s=>({...s}));
   updBadge(); renderCal();
   // Restaurar imatges dels posts programats des d'IndexedDB
@@ -1725,10 +1715,10 @@ async function changeRest() {
 }
 
 async function addRest() {
-  const n = prompt('Nombre del nuevo restaurante:'); if (!n) return;
+  const n = prompt('Nom del nou client:'); if (!n) return;
   const data = {
-    name:n,cuisine:'Especialitat / sector',desc:'Descripción.',web:'',ig:'@'+n.toLowerCase().replace(/\s+/g,''),
-    lang:'Español',freq:'Diaria',tags:'#restaurante',cta:'¡Reserva!',
+    name:n,cuisine:'Especialitat / sector',desc:'Descripció.',web:'',ig:'@'+n.toLowerCase().replace(/\s+/g,''),
+    lang:'Español',freq:'Diaria',tags:'#disseny #branding',cta:'Parlem!',
     scheduled:[],createdAt:firebase.firestore.FieldValue.serverTimestamp()
   };
   const ref = await db.collection('users').doc(currentUser.uid).collection('restaurants').add(data);
@@ -1981,7 +1971,7 @@ function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t
 async function deleteCurrentRest() {
   const rest = restaurants.find(r => r.id === currentRestId);
   if (!rest) return;
-  if (restaurants.length <= 1) { toast("❌ No pots eliminar l'únic restaurant"); return; }
+  if (restaurants.length <= 1) { toast("❌ No pots eliminar l'únic client"); return; }
   if (!confirm('¿Eliminar el client "' + rest.name + '"? Esta acción no se puede deshacer.')) return;
   try {
     setSyncState('spin', 'Eliminant...');
