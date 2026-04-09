@@ -176,6 +176,15 @@ select option{background:var(--surface2)}
 .bo-act .bo-use{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
 .bo-empty{text-align:center;padding:60px 20px;color:var(--text3);grid-column:1/-1}
 .bo-gen-area{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:24px;margin-bottom:20px}
+/* Lightbox */
+.lb-img-wrap{position:relative;display:flex;align-items:center;justify-content:center;max-width:90vw;max-height:85vh}
+.lb-img-wrap img{max-width:90vw;max-height:80vh;object-fit:contain;border-radius:var(--r);box-shadow:0 20px 60px rgba(0,0,0,.6);display:block}
+.lb-close{position:fixed;top:20px;right:20px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:200;transition:background .15s}
+.lb-close:hover{background:rgba(255,255,255,.15)}
+.lb-caption{position:absolute;bottom:-32px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,.5)}
+.bo-img-wrap{position:relative;overflow:hidden}
+.bo-img-wrap .lb-zoom{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;z-index:4}
+.bo-card:hover .lb-zoom{opacity:1}
 /* Toast */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--accent);color:var(--accent);padding:12px 20px;border-radius:var(--rs);font-size:13px;transform:translateY(100px);opacity:0;transition:all .3s;z-index:200;max-width:340px}
 .toast.show{transform:translateY(0);opacity:1}
@@ -1005,72 +1014,53 @@ function buildImagePrompt(prompt, isStory) {
   return `${theme}, ${prompt}, professional photography, editorial style, ${orient}, shallow depth of field, elegant natural lighting, ultra detailed 8k resolution, clean minimal background`;
 }
 
-// ── Gemini Imagen 3 — crida directa sense Puter ─────────────────────────────
+// Modelos Gemini con imagen, en orden de preferencia (gratuïts)
+const GEMINI_IMG_MODELS = [
+  'gemini-2.0-flash-exp',
+  'gemini-2.0-flash',
+  'gemini-2.5-flash-preview-04-17',
+];
+
+async function callGeminiImgModel(model, fullPrompt, apiKey) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: fullPrompt }] }],
+        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+      })
+    }
+  );
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`${model} HTTP ${res.status}: ${errText.slice(0, 100)}`);
+  }
+  const data = await res.json();
+  const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
+  if (!part?.inlineData?.data) throw new Error(`${model}: sense imatge a la resposta`);
+  return 'data:' + (part.inlineData.mimeType || 'image/jpeg') + ';base64,' + part.inlineData.data;
+}
+
 async function generateWithGemini(prompt, isStory) {
   const apiKey = getGeminiKey();
-  if (!apiKey) throw new Error('No hi ha Gemini API Key. Afegeix-la a Configuració.');
+  if (!apiKey) throw new Error('No Gemini key');
   const fullPrompt = buildImagePrompt(prompt, isStory);
-  const aspectRatio = isStory ? '9:16' : '1:1';
-
-  // 1r intent: Imagen 3 (millor qualitat, endpoint :predict)
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          instances: [{ prompt: fullPrompt }],
-          parameters: { sampleCount: 1, aspectRatio }
-        })
-      }
-    );
-    if (res.ok) {
-      const data = await res.json();
-      const pred = data?.predictions?.[0];
-      if (pred?.bytesBase64Encoded) {
-        console.log('✅ Gemini Imagen 3 OK');
-        return 'data:' + (pred.mimeType || 'image/png') + ';base64,' + pred.bytesBase64Encoded;
-      }
-    } else {
-      const errText = await res.text();
-      console.warn('Imagen 3 HTTP', res.status, errText.slice(0, 100));
-      // Si és 400/403 probablement la key no té accés a Imagen 3 — prova fallback
-      if (res.status === 401) throw new Error('Gemini API Key invàlida (' + res.status + ')');
-    }
-  } catch(e) {
-    if (e.message.includes('invàlida')) throw e;
-    console.warn('Imagen 3 error:', e.message);
-  }
-
-  // Fallback: gemini-2.0-flash-exp amb responseModalities
-  const fallbackModels = ['gemini-2.0-flash-exp', 'gemini-2.0-flash'];
-  for (const model of fallbackModels) {
+  let lastErr = null;
+  for (const model of GEMINI_IMG_MODELS) {
     try {
-      console.log('Provant fallback:', model);
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: fullPrompt }] }],
-            generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
-          })
-        }
-      );
-      if (!res.ok) { const t = await res.text(); throw new Error(`HTTP ${res.status}: ${t.slice(0,80)}`); }
-      const data = await res.json();
-      const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-      if (part?.inlineData?.data) {
-        console.log('✅ Fallback OK amb:', model);
-        return 'data:' + (part.inlineData.mimeType || 'image/jpeg') + ';base64,' + part.inlineData.data;
-      }
+      console.log('Provant Gemini model:', model);
+      const url = await callGeminiImgModel(model, fullPrompt, apiKey);
+      console.log('✅ Gemini OK amb:', model);
+      return url;
     } catch(e) {
       console.warn(`❌ ${model}:`, e.message);
+      lastErr = e;
+      if (e.message.includes('401') || e.message.includes('403')) break;
     }
   }
-  throw new Error('Gemini Imagen 3 i els models de fallback han fallat. Comprova la API Key a Configuració.');
+  throw new Error('Tots els models Gemini han fallat: ' + (lastErr?.message || '?'));
 }
 
 async function generateImageNb(prompt, isStory) {
@@ -1339,6 +1329,7 @@ function renderIgGrid(images) {
         <img src="${src}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
           onload="this.previousElementSibling.style.display='none'"
           onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
+        <button class="lb-zoom" onclick="event.stopPropagation();openLightbox('${src}','${(img.caption||''). slice(0,80)}')" title="Veure ampliada">🔍</button>
       </div>
       <div class="bo-meta"><div class="bo-src">📷 Xarxes socials</div><div class="bo-caption">${img.caption?.slice(0,60)||''}</div></div>
       <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
@@ -1359,6 +1350,7 @@ function renderWebGrid(images) {
         <img src="${img.url}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
           onload="this.previousElementSibling.style.display='none'"
           onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
+        <button class="lb-zoom" onclick="event.stopPropagation();openLightbox('${img.url}','')" title="Veure ampliada">🔍</button>
       </div>
       <div class="bo-meta"><div class="bo-src">🌐 Web</div></div>
       <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
@@ -1377,7 +1369,10 @@ function renderGenGrid() {
     const idx = libImages.indexOf(img);
     return `
     <div class="bo-card" id="gencard-${img.idbId||idx}">
-      <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'">
+      <div style="position:relative;overflow:hidden">
+        <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'" style="width:100%;aspect-ratio:1;object-fit:cover;display:block">
+        <button class="lb-zoom" onclick="event.stopPropagation();openLightbox('${img.url}','${(img.prompt||''). slice(0,80)}')" title="Veure ampliada">🔍</button>
+      </div>
       <div class="bo-meta"><div class="bo-src">🎨 IA Generada</div><div class="bo-caption">${img.prompt||''}</div></div>
       <div class="bo-act">
         <button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button>
@@ -1682,6 +1677,11 @@ function openPrev(id) {
     <div class="igimg ${p.type==='story'?'story':''}">${imgH}</div>
     <div class="igca"><div class="igcatxt">${p.caption}</div><div class="ightags">${p.hashtags}</div></div>`;
   document.getElementById('ovPrev').classList.add('open');
+}
+function openLightbox(src, caption) {
+  document.getElementById('lbImg').src = src;
+  document.getElementById('lbCaption').textContent = caption || '';
+  document.getElementById('ovLightbox').classList.add('open');
 }
 function closeOv(id) { document.getElementById(id).classList.remove('open'); }
 function closeOvIf(e, id) { if (e.target.id === id) closeOv(id); }
@@ -2590,5 +2590,14 @@ function changeRestDrawer() {
 
 window.onload = initApp;
 </script>
+<!-- Lightbox -->
+<div class="ov" id="ovLightbox" onclick="closeOv('ovLightbox')">
+  <button class="lb-close" onclick="closeOv('ovLightbox')">✕</button>
+  <div class="lb-img-wrap" onclick="event.stopPropagation()">
+    <img id="lbImg" src="" alt="">
+    <div class="lb-caption" id="lbCaption"></div>
+  </div>
+</div>
+
 </body>
 </html>
