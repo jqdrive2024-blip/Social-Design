@@ -176,15 +176,6 @@ select option{background:var(--surface2)}
 .bo-act .bo-use{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
 .bo-empty{text-align:center;padding:60px 20px;color:var(--text3);grid-column:1/-1}
 .bo-gen-area{background:var(--surface);border:1px solid var(--border);border-radius:var(--rl);padding:24px;margin-bottom:20px}
-/* Lightbox */
-.lb-img-wrap{position:relative;display:flex;align-items:center;justify-content:center;max-width:90vw;max-height:85vh}
-.lb-img-wrap img{max-width:90vw;max-height:80vh;object-fit:contain;border-radius:var(--r);box-shadow:0 20px 60px rgba(0,0,0,.6);display:block}
-.lb-close{position:fixed;top:20px;right:20px;background:rgba(0,0,0,.6);border:1px solid rgba(255,255,255,.15);color:#fff;width:38px;height:38px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:200;transition:background .15s}
-.lb-close:hover{background:rgba(255,255,255,.15)}
-.lb-caption{position:absolute;bottom:-32px;left:0;right:0;text-align:center;font-size:12px;color:rgba(255,255,255,.5)}
-.bo-img-wrap{position:relative;overflow:hidden}
-.bo-img-wrap .lb-zoom{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:28px;height:28px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;z-index:4}
-.bo-card:hover .lb-zoom{opacity:1}
 /* Toast */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--accent);color:var(--accent);padding:12px 20px;border-radius:var(--rs);font-size:13px;transform:translateY(100px);opacity:0;transition:all .3s;z-index:200;max-width:340px}
 .toast.show{transform:translateY(0);opacity:1}
@@ -918,7 +909,7 @@ async function generateWithCloudflare(prompt, isStory) {
   });
   const data = await res.json();
   if (!res.ok || data.error) throw new Error(data.error || `Cloudflare HTTP ${res.status}`);
-  return data.image; // data:image/png;base64,...
+  return { url: data.image, label: '☁️ Cloudflare SDXL' };
 }
 async function testCloudflare() {
   const btn = document.getElementById('cfTestBtn');
@@ -1015,52 +1006,41 @@ function buildImagePrompt(prompt, isStory) {
 }
 
 // Modelos Gemini con imagen, en orden de preferencia (gratuïts)
-const GEMINI_IMG_MODELS = [
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash',
-  'gemini-2.5-flash-preview-04-17',
-];
+// ── Gemini Imagen 3 — endpoint :predict (millor qualitat) ────────────────────
+async function generateWithGemini(prompt, isStory) {
+  const apiKey = getGeminiKey();
+  if (!apiKey) throw new Error('No hi ha Gemini API Key. Afegeix-la a Configuració.');
+  const fullPrompt = buildImagePrompt(prompt, isStory);
+  const aspectRatio = isStory ? '9:16' : '1:1';
 
-async function callGeminiImgModel(model, fullPrompt, apiKey) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: fullPrompt }] }],
-        generationConfig: { responseModalities: ['IMAGE', 'TEXT'] }
+        instances: [{ prompt: fullPrompt }],
+        parameters: { sampleCount: 1, aspectRatio }
       })
     }
   );
+
   if (!res.ok) {
     const errText = await res.text();
-    throw new Error(`${model} HTTP ${res.status}: ${errText.slice(0, 100)}`);
+    let msg = '';
+    try { msg = JSON.parse(errText)?.error?.message || errText.slice(0, 120); } catch { msg = errText.slice(0, 120); }
+    throw new Error('Gemini Imagen 3 HTTP ' + res.status + ': ' + msg);
   }
-  const data = await res.json();
-  const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-  if (!part?.inlineData?.data) throw new Error(`${model}: sense imatge a la resposta`);
-  return 'data:' + (part.inlineData.mimeType || 'image/jpeg') + ';base64,' + part.inlineData.data;
-}
 
-async function generateWithGemini(prompt, isStory) {
-  const apiKey = getGeminiKey();
-  if (!apiKey) throw new Error('No Gemini key');
-  const fullPrompt = buildImagePrompt(prompt, isStory);
-  let lastErr = null;
-  for (const model of GEMINI_IMG_MODELS) {
-    try {
-      console.log('Provant Gemini model:', model);
-      const url = await callGeminiImgModel(model, fullPrompt, apiKey);
-      console.log('✅ Gemini OK amb:', model);
-      return url;
-    } catch(e) {
-      console.warn(`❌ ${model}:`, e.message);
-      lastErr = e;
-      if (e.message.includes('401') || e.message.includes('403')) break;
-    }
-  }
-  throw new Error('Tots els models Gemini han fallat: ' + (lastErr?.message || '?'));
+  const data = await res.json();
+  const pred = data?.predictions?.[0];
+  if (!pred?.bytesBase64Encoded) throw new Error('Gemini Imagen 3: sense imatge a la resposta');
+
+  console.log('✅ Gemini Imagen 3 OK');
+  return {
+    url: 'data:' + (pred.mimeType || 'image/png') + ';base64,' + pred.bytesBase64Encoded,
+    label: '✨ Gemini Imagen 3'
+  };
 }
 
 async function generateImageNb(prompt, isStory) {
@@ -1106,7 +1086,7 @@ async function generateWithPuter(prompt, isStory) {
   const size = isStory ? '1024x1792' : '1024x1024';
   try {
     const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
-    if (imgEl?.src) return imgEl.src;
+    if (imgEl?.src) return { url: imgEl.src, label: '⚡ Puter FLUX' };
     throw new Error('Sense src');
   } catch(e) {
     if (/credit|quota|limit/i.test(e.message||''))
@@ -1149,18 +1129,20 @@ async function genImageForProp(propId) {
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   try {
     const ctx = document.getElementById('ctx')?.value?.trim() || '';
-    const url = await generateImageNb(p.imagePrompt || p.title + (ctx ? ' ' + ctx : ''), p.type === 'story');
-    proposals[proposals.indexOf(p)].imageData = url;
+    const result1 = await generateImageNb(p.imagePrompt || p.title + (ctx ? ' ' + ctx : ''), p.type === 'story');
+    const url1 = result1?.url || result1;
+    const label1 = result1?.label || '🤖 IA';
+    proposals[proposals.indexOf(p)].imageData = url1;
     // Afegir a la librería i persistir
-    const imgData = { url, source: 'generated', prompt: p.imagePrompt || p.title, type: p.type, restId: currentRestId };
+    const imgData = { url: url1, source: 'generated', prompt: p.imagePrompt || p.title, type: p.type, restId: currentRestId, modelLabel: label1 };
     addToLibrary(imgData);
     idbSaveImage(imgData);
-    injectImg(propId, url);
+    injectImg(propId, url1);
     // Eliminar botó generar
     const newBtn = document.getElementById('imgbtn-' + propId);
     if (newBtn) newBtn.remove();
     const srcTag = document.getElementById('srctag-' + propId);
-    if (srcTag) { srcTag.textContent = '🤖 Nanobanana'; srcTag.style.display = 'block'; }
+    if (srcTag) { srcTag.textContent = label1; srcTag.style.display = 'block'; }
   } catch(e) {
     console.error('Gen img error:', e);
     const b = document.getElementById('cprev-' + propId);
@@ -1329,7 +1311,6 @@ function renderIgGrid(images) {
         <img src="${src}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
           onload="this.previousElementSibling.style.display='none'"
           onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
-        <button class="lb-zoom" onclick="event.stopPropagation();openLightbox('${src}','${(img.caption||''). slice(0,80)}')" title="Veure ampliada">🔍</button>
       </div>
       <div class="bo-meta"><div class="bo-src">📷 Xarxes socials</div><div class="bo-caption">${img.caption?.slice(0,60)||''}</div></div>
       <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
@@ -1350,7 +1331,6 @@ function renderWebGrid(images) {
         <img src="${img.url}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
           onload="this.previousElementSibling.style.display='none'"
           onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
-        <button class="lb-zoom" onclick="event.stopPropagation();openLightbox('${img.url}','')" title="Veure ampliada">🔍</button>
       </div>
       <div class="bo-meta"><div class="bo-src">🌐 Web</div></div>
       <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
@@ -1369,11 +1349,8 @@ function renderGenGrid() {
     const idx = libImages.indexOf(img);
     return `
     <div class="bo-card" id="gencard-${img.idbId||idx}">
-      <div style="position:relative;overflow:hidden">
-        <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'" style="width:100%;aspect-ratio:1;object-fit:cover;display:block">
-        <button class="lb-zoom" onclick="event.stopPropagation();openLightbox('${img.url}','${(img.prompt||''). slice(0,80)}')" title="Veure ampliada">🔍</button>
-      </div>
-      <div class="bo-meta"><div class="bo-src">🎨 IA Generada</div><div class="bo-caption">${img.prompt||''}</div></div>
+      <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'">
+      <div class="bo-meta"><div class="bo-src">${img.modelLabel||'🤖 IA Generada'}</div><div class="bo-caption">${img.prompt||''}</div></div>
       <div class="bo-act">
         <button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button>
         <button onclick="event.stopPropagation();downloadImg('${img.url}')">↓</button>
@@ -1515,8 +1492,10 @@ async function genLibraryImage() {
   btn.disabled = true;
   btn.textContent = geminiKey ? '⏳ Generant amb Gemini...' : '⏳ Generant amb Puter...';
   try {
-    const url = await generateImageNb(prompt, isStory);
-    const imgData = { url, source: 'generated', prompt, type: isStory ? 'story' : 'post', restId: currentRestId };
+    const result2 = await generateImageNb(prompt, isStory);
+    const url = result2?.url || result2;
+    const modelLabel = result2?.label || '🤖 IA';
+    const imgData = { url, source: 'generated', prompt, type: isStory ? 'story' : 'post', restId: currentRestId, modelLabel };
     addToLibrary(imgData);
     // Guardar en IndexedDB para persistencia
     await idbSaveImage(imgData);
@@ -1677,11 +1656,6 @@ function openPrev(id) {
     <div class="igimg ${p.type==='story'?'story':''}">${imgH}</div>
     <div class="igca"><div class="igcatxt">${p.caption}</div><div class="ightags">${p.hashtags}</div></div>`;
   document.getElementById('ovPrev').classList.add('open');
-}
-function openLightbox(src, caption) {
-  document.getElementById('lbImg').src = src;
-  document.getElementById('lbCaption').textContent = caption || '';
-  document.getElementById('ovLightbox').classList.add('open');
 }
 function closeOv(id) { document.getElementById(id).classList.remove('open'); }
 function closeOvIf(e, id) { if (e.target.id === id) closeOv(id); }
@@ -2590,14 +2564,5 @@ function changeRestDrawer() {
 
 window.onload = initApp;
 </script>
-<!-- Lightbox -->
-<div class="ov" id="ovLightbox" onclick="closeOv('ovLightbox')">
-  <button class="lb-close" onclick="closeOv('ovLightbox')">✕</button>
-  <div class="lb-img-wrap" onclick="event.stopPropagation()">
-    <img id="lbImg" src="" alt="">
-    <div class="lb-caption" id="lbCaption"></div>
-  </div>
-</div>
-
 </body>
 </html>
