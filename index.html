@@ -961,27 +961,30 @@ function getGeminiWorkerUrl() {
 async function testGeminiConnection() {
   const btn = document.getElementById('geminiTestBtn');
   const status = document.getElementById('geminiTestStatus');
-  // Save key first if there's a value in the input
+  // Guardar key i worker URL SEMPRE abans de provar
   const keyInput = document.getElementById('cfGeminiKeyImg')?.value?.trim();
+  const workerInput = document.getElementById('cfGeminiWorkerUrl')?.value?.trim();
   if (keyInput) {
     localStorage.setItem('sc_gemini_key', keyInput);
     const cfgEl = document.getElementById('cfgGeminiKey');
     if (cfgEl) cfgEl.value = keyInput;
   }
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant models...'; }
-  if (status) status.textContent = 'Provant ' + GEMINI_IMG_ENDPOINTS.length + ' models...';
+  if (workerInput) localStorage.setItem('sc_gemini_worker_url', workerInput);
+  
+  const workerUrl = localStorage.getItem('sc_gemini_worker_url') || '';
+  const usingWorker = !!workerUrl;
+  
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant...'; }
+  if (status) status.textContent = usingWorker ? 'Via Cloudflare Worker...' : 'Via proxy directe...';
   try {
     const result = await generateWithGemini('a small blue circle on white background', false);
     const workingModel = localStorage.getItem('sc_gemini_working_model') || '';
-    if (status) status.innerHTML = '<span style="color:var(--green)">✓ Funciona! Model: ' + workingModel + '</span>';
-    toast('✓ Gemini connectat amb ' + workingModel);
+    if (status) status.innerHTML = '<span style="color:var(--green)">✓ Funciona! ' + (usingWorker ? 'Worker · ' : '') + workingModel + '</span>';
+    toast('✓ Gemini connectat!');
   } catch(e) {
     let msg = e.message.slice(0, 120);
-    if (/403|billing|PERMISSION_DENIED/i.test(msg)) {
-      msg = 'Error de permisos/billing. Activa el billing al projecte Google Cloud.';
-    } else if (/401|API_KEY_INVALID/i.test(msg)) {
-      msg = 'API Key invàlida. Comprova que la key sigui correcta.';
-    }
+    if (/403|billing|PERMISSION_DENIED/i.test(msg)) msg = 'Error de permisos/billing al projecte Google Cloud.';
+    else if (/401|API_KEY_INVALID/i.test(msg)) msg = 'API Key invàlida.';
     if (status) status.innerHTML = '<span style="color:var(--red)">✗ ' + msg + '</span>';
     toast('❌ Gemini: ' + e.message.slice(0, 60));
   } finally {
