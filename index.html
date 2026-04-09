@@ -569,10 +569,26 @@ select option{background:var(--surface2)}
         <!-- Generació d'imatges amb IA -->
         <div class="cfgcard" style="grid-column:1/-1">
           <h3>🎨 Generació d'imatges amb IA</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
-            <div style="display:flex;flex-direction:column;gap:14px">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;margin-bottom:20px">
+
+            <!-- Model selector -->
+            <div style="display:flex;flex-direction:column;gap:12px">
               <div class="fg">
-                <label>Temàtica visual per a les imatges</label>
+                <label>Model de generació</label>
+                <select id="cfgImgModel" onchange="saveImgModel()">
+                  <option value="gemini">✨ Gemini Imagen (recomanat)</option>
+                  <option value="cloudflare">☁️ Cloudflare SDXL (alta qualitat)</option>
+                  <option value="puter">⚡ Puter FLUX (gratuït)</option>
+                </select>
+              </div>
+              <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border);font-size:11px;color:var(--text3);line-height:1.8" id="modelInfo">
+              </div>
+            </div>
+
+            <!-- Temàtica -->
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="fg">
+                <label>Temàtica visual</label>
                 <select id="cfgImgTheme" onchange="saveImgTheme()">
                   <option value="design">🎨 Disseny gràfic i branding</option>
                   <option value="arch">🏛️ Arquitectura i interiorisme</option>
@@ -580,44 +596,61 @@ select option{background:var(--surface2)}
                   <option value="tech">💻 Tecnologia i startup</option>
                   <option value="nature">🌿 Natura i sostenibilitat</option>
                   <option value="art">🖼️ Art i il·lustració</option>
-                  <option value="custom">✏️ Personalitzada (escriu avall)</option>
+                  <option value="custom">✏️ Personalitzada</option>
                 </select>
-              </div>
-              <div class="fg">
-                <label>Model de generació d'imatges (Puter)</label>
-                <select id="cfgImgModel" onchange="saveImgModel()">
-                  <option value="black-forest-labs/flux.1-schnell">⚡ FLUX.1 Schnell (gratuït, ràpid)</option>
-                  <option value="black-forest-labs/flux.1-dev">🎨 FLUX.1 Dev (millor qualitat)</option>
-                  <option value="stability-ai/stable-diffusion-xl">🖼️ Stable Diffusion XL</option>
-                  <option value="dalle-3">🤖 DALL-E 3 (requereix API Key)</option>
-                </select>
-                <span style="font-size:11px;color:var(--text3);margin-top:3px">Els models que requereixen crèdits només funcionen si tens sessió iniciada a Puter.</span>
               </div>
               <div class="fg" id="cfgImgCustomArea" style="display:none">
-                <label>Descripció del tipus d'imatge que vols</label>
                 <textarea rows="2" id="cfgImgCustom" placeholder="Ex: fotografia de producte cosmètic minimalista, fons pastel, llum natural..." onchange="saveImgTheme()"></textarea>
               </div>
-              <div style="padding:10px 12px;background:var(--surface2);border-radius:var(--rs);border:1px solid var(--border)">
-                <div style="font-size:11px;color:var(--text3);margin-bottom:6px">Ordre de generació:</div>
-                <div style="font-size:12px;color:var(--text2);line-height:1.8">
-                  1️⃣ <strong style="color:var(--accent)">Gemini</strong> (si tens API Key) — millor qualitat<br>
-                  2️⃣ <strong style="color:var(--text2)">Puter FLUX</strong> — gratuït amb compte Puter
+            </div>
+
+            <!-- Puter status -->
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="padding:14px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)">
+                <div style="font-size:12px;font-weight:500;margin-bottom:6px">Compte Puter (FLUX)</div>
+                <div id="puterStatus" style="font-size:11px;color:var(--text3);margin-bottom:8px">○ Estat desconegut</div>
+                <div style="display:flex;gap:6px">
+                  <button id="puterLoginBtn" onclick="puterLogin()" class="bp" style="font-size:11px;padding:6px 12px">Iniciar sessió</button>
+                  <button id="puterLogoutBtn" onclick="puterLogout()" class="bs" style="font-size:11px;padding:6px 12px;display:none">Desconnectar</button>
                 </div>
               </div>
             </div>
-            <div style="display:flex;flex-direction:column;gap:10px">
-              <div style="padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)">
-                <div style="font-size:13px;font-weight:500;margin-bottom:8px">Compte Puter</div>
-                <div style="font-size:12px;color:var(--text3);margin-bottom:10px;line-height:1.6">Inicia sessió per usar els teus crèdits FLUX i evitar límits.</div>
-                <div id="puterStatus" style="font-size:12px;color:var(--text3);margin-bottom:10px">○ Estat desconegut</div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap">
-                  <button id="puterLoginBtn" onclick="puterLogin()" class="bp" style="font-size:12px;padding:8px 14px">Iniciar sessió a Puter</button>
-                  <button id="puterLogoutBtn" onclick="puterLogout()" class="bs" style="font-size:12px;padding:8px 14px;display:none">Desconnectar</button>
-                </div>
+          </div>
+
+          <!-- Cloudflare config (visible only when cloudflare selected) -->
+          <div id="cfCloudflareConfig" style="display:none;padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);margin-top:4px">
+            <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+              ☁️ Cloudflare Workers AI
+              <span style="font-size:11px;font-weight:400;color:var(--text3)">— Model: stable-diffusion-xl-base-1.0</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+              <div class="fg">
+                <label>Account ID</label>
+                <input type="text" id="cfAccountId" placeholder="a1b2c3d4e5f6..." autocomplete="off">
+                <span style="font-size:11px;color:var(--text3);margin-top:3px">Cloudflare Dashboard → dreta del sidebar</span>
               </div>
-              <div style="padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
-                <p style="font-size:11px;color:var(--text3);line-height:1.7">💡 Sense Gemini Key, Puter usa <strong style="color:var(--text2)">FLUX.1-schnell</strong> gratuïtament. Iniciant sessió a Puter els crèdits no s'esgoten tan ràpid.</p>
+              <div class="fg">
+                <label>API Token</label>
+                <input type="password" id="cfApiToken" placeholder="xxxx..." autocomplete="off">
+                <span style="font-size:11px;color:var(--text3);margin-top:3px">
+                  <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" style="color:var(--accent)">Crear token →</a>
+                  usa la plantilla "Workers AI"
+                </span>
               </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="bp" onclick="saveCloudflareCfg()" style="font-size:12px;padding:8px 16px">Guardar Cloudflare</button>
+              <button class="bs" onclick="testCloudflare()" id="cfTestBtn" style="font-size:12px;padding:8px 16px">🔍 Provar connexió</button>
+              <span id="cfTestStatus" style="font-size:12px;color:var(--text3)"></span>
+            </div>
+            <div style="margin-top:12px;padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
+              <p style="font-size:11px;color:var(--text3);line-height:1.7">
+                💡 <strong style="color:var(--text2)">Com obtenir les credencials:</strong><br>
+                1. Crea compte gratis a <a href="https://cloudflare.com" target="_blank" style="color:var(--accent)">cloudflare.com</a><br>
+                2. <strong>Account ID:</strong> Dashboard → copia el valor del sidebar dret<br>
+                3. <strong>API Token:</strong> <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" style="color:var(--accent)">Profile → API Tokens</a> → "Create Token" → plantilla "Workers AI" → crear<br>
+                4. Gratis: 10.000 passos/dia · SDXL genera imatges de molt millor qualitat que FLUX
+              </p>
             </div>
           </div>
         </div>
@@ -667,7 +700,6 @@ select option{background:var(--surface2)}
                 <button onclick="checkPublisherStatus()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap">↻ Refrescar estat</button>
                 <button onclick="repushAllScheduled()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap" title="Torna a enviar tots els posts pendents al servidor">↑ Reenviar tots</button>
                 <button onclick="cleanTestPosts()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap;color:var(--red);border-color:rgba(232,126,126,.5)" title="Elimina els posts TEST_ del planificador">🗑 Netejar tests</button>
-                <button onclick="clearUploadsFolder()" class="bs" style="font-size:12px;padding:8px 14px;white-space:nowrap;color:var(--red);border-color:rgba(232,126,126,.5)" title="Elimina TOTES les imatges de la carpeta uploads/">🗑 Netejar uploads</button>
               </div>
             </div>
             <div style="margin-top:10px;padding:10px 12px;background:rgba(167,139,250,.05);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs)">
@@ -817,6 +849,94 @@ function getGeminiKey() {
   return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
 }
 
+// ── Model selector ───────────────────────────────────────────────────────────
+const MODEL_INFO = {
+  gemini:     '✨ Millor qualitat · Requereix API Key gratuïta de Google · Imatges en base64',
+  cloudflare: '☁️ Alta qualitat (SDXL) · 10.000 passes/dia gratis · Requereix compte Cloudflare',
+  puter:      '⚡ Gratuït sense configuració · Qualitat bàsica (FLUX.1-schnell) · Requereix sessió Puter',
+};
+
+function getImgModel() { return localStorage.getItem('sc_img_model') || 'gemini'; }
+function saveImgModel() {
+  const sel = document.getElementById('cfgImgModel')?.value || 'gemini';
+  localStorage.setItem('sc_img_model', sel);
+  updateModelUI(sel);
+}
+function updateModelUI(model) {
+  const info = document.getElementById('modelInfo');
+  if (info) info.textContent = MODEL_INFO[model] || '';
+  const cfPanel = document.getElementById('cfCloudflareConfig');
+  if (cfPanel) cfPanel.style.display = model === 'cloudflare' ? 'block' : 'none';
+}
+function loadImgModelUI() {
+  const model = getImgModel();
+  const el = document.getElementById('cfgImgModel');
+  if (el) el.value = model;
+  updateModelUI(model);
+  // Load Cloudflare credentials
+  const accId = localStorage.getItem('sc_cf_account_id') || '';
+  const tok   = localStorage.getItem('sc_cf_api_token')  || '';
+  if (document.getElementById('cfAccountId')) document.getElementById('cfAccountId').value = accId;
+  if (document.getElementById('cfApiToken'))  document.getElementById('cfApiToken').value  = tok;
+}
+function saveCloudflareCfg() {
+  const accId = document.getElementById('cfAccountId')?.value?.trim() || '';
+  const tok   = document.getElementById('cfApiToken')?.value?.trim()  || '';
+  localStorage.setItem('sc_cf_account_id', accId);
+  localStorage.setItem('sc_cf_api_token',  tok);
+  toast('✓ Cloudflare desat');
+}
+
+// ── Cloudflare Workers AI — SDXL ─────────────────────────────────────────────
+function getCfCreds() {
+  return {
+    accountId: localStorage.getItem('sc_cf_account_id') || '',
+    apiToken:  localStorage.getItem('sc_cf_api_token')  || '',
+  };
+}
+async function generateWithCloudflare(prompt, isStory) {
+  const { accountId, apiToken } = getCfCreds();
+  if (!accountId || !apiToken) throw new Error('Configura Account ID i API Token de Cloudflare a Configuració');
+  const fullPrompt = buildImagePrompt(prompt, isStory);
+  const width  = isStory ? 768  : 1024;
+  const height = isStory ? 1344 : 1024;
+  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt: fullPrompt, num_steps: 20, width, height })
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Cloudflare HTTP ${res.status}: ${err.slice(0, 120)}`);
+  }
+  // Cloudflare retorna la imatge com a binary stream
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result); // data:image/png;base64,...
+    reader.onerror = () => reject(new Error('Error convertint imatge Cloudflare'));
+    reader.readAsDataURL(blob);
+  });
+}
+async function testCloudflare() {
+  const btn = document.getElementById('cfTestBtn');
+  const status = document.getElementById('cfTestStatus');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant...'; }
+  if (status) status.textContent = '';
+  try {
+    saveCloudflareCfg();
+    await generateWithCloudflare('a simple blue circle on white background', false);
+    if (status) status.innerHTML = '<span style="color:var(--green)">✓ Cloudflare SDXL funciona correctament!</span>';
+    toast('✓ Cloudflare Workers AI connectat!');
+  } catch(e) {
+    if (status) status.innerHTML = '<span style="color:var(--red)">✗ ' + e.message.slice(0, 80) + '</span>';
+    toast('❌ ' + e.message.slice(0, 80));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Provar connexió'; }
+  }
+}
+
 // ── Temàtiques d'imatge ──────────────────────────────────────────────────────
 const IMG_THEMES = {
   design:  'graphic design studio flat lay, branding elements, typography books, Pantone swatches, design markers, creative workspace',
@@ -847,20 +967,6 @@ function loadImgThemeUI() {
   if (customArea) customArea.style.display = sel === 'custom' ? 'flex' : 'none';
   const customTxt = document.getElementById('cfgImgCustom');
   if (customTxt) customTxt.value = localStorage.getItem('sc_img_custom') || '';
-}
-
-// ── Model de generació d'imatges ─────────────────────────────────────────────
-function saveImgModel() {
-  const model = document.getElementById('cfgImgModel')?.value || 'black-forest-labs/flux.1-schnell';
-  localStorage.setItem('sc_img_model', model);
-}
-function loadImgModelUI() {
-  const model = localStorage.getItem('sc_img_model') || 'black-forest-labs/flux.1-schnell';
-  const el = document.getElementById('cfgImgModel');
-  if (el) el.value = model;
-}
-function getImgModel() {
-  return localStorage.getItem('sc_img_model') || 'black-forest-labs/flux.1-schnell';
 }
 
 // ── Puter login ──────────────────────────────────────────────────────────────
@@ -953,37 +1059,54 @@ async function generateWithGemini(prompt, isStory) {
 }
 
 async function generateImageNb(prompt, isStory) {
-  const geminiKey = getGeminiKey();
-  const selectedModel = getImgModel();
+  const model = getImgModel();
 
-  // Si el model seleccionat és DALL-E 3, usar Gemini (DALL-E requereix API d'OpenAI)
-  if (selectedModel === 'dalle-3' && geminiKey) {
-    try { return await generateWithGemini(prompt, isStory); }
+  // ── Cloudflare SDXL ──────────────────────────────────────────────────────
+  if (model === 'cloudflare') {
+    try { return await generateWithCloudflare(prompt, isStory); }
     catch(e) {
-      console.warn('Gemini falló:', e.message);
-      toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant FLUX...');
+      console.warn('Cloudflare falló:', e.message);
+      toast('⚠️ Cloudflare: ' + e.message.slice(0,60) + ' · Provant Gemini...');
+      // Fallback a Gemini si hi ha key
+      const geminiKey = getGeminiKey();
+      if (geminiKey) {
+        try { return await generateWithGemini(prompt, isStory); } catch(e2) { console.warn(e2.message); }
+      }
+      // Fallback final a Puter
+      return await generateWithPuter(prompt, isStory);
     }
   }
 
-  // Fallback: Puter amb el model seleccionat
+  // ── Gemini ───────────────────────────────────────────────────────────────
+  if (model === 'gemini') {
+    const geminiKey = getGeminiKey();
+    if (geminiKey) {
+      try { return await generateWithGemini(prompt, isStory); }
+      catch(e) {
+        console.warn('Gemini falló:', e.message);
+        toast('⚠️ Gemini: ' + e.message.slice(0,60) + ' · Provant Puter...');
+      }
+    } else {
+      toast('⚠️ No hi ha Gemini API Key. Afegeix-la a Configuració o canvia de model.');
+    }
+    return await generateWithPuter(prompt, isStory);
+  }
+
+  // ── Puter FLUX (model === 'puter' o fallback) ─────────────────────────────
+  return await generateWithPuter(prompt, isStory);
+}
+
+async function generateWithPuter(prompt, isStory) {
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const size = isStory ? '1024x1792' : '1024x1024';
   try {
-    const imgEl = await puter.ai.txt2img(fullPrompt, { model: selectedModel, size });
+    const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
     if (imgEl?.src) return imgEl.src;
     throw new Error('Sense src');
   } catch(e) {
-    // Si el model seleccionat falla per crèdits, intentar amb schnell (gratuït)
-    if (/credit|quota|limit/i.test(e.message||'') && selectedModel !== 'black-forest-labs/flux.1-schnell') {
-      toast('⚠️ ' + selectedModel + ' sense crèdits. Provant FLUX Schnell gratuït...');
-      try {
-        const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'black-forest-labs/flux.1-schnell', size });
-        if (imgEl?.src) return imgEl.src;
-      } catch(e2) {
-        throw new Error('Puter sense crèdits. Inicia sessió a Puter (Configuració) o afegeix una Gemini API Key.');
-      }
-    }
-    throw new Error('Error generant: ' + e.message);
+    if (/credit|quota|limit/i.test(e.message||''))
+      throw new Error('Puter sense crèdits. Inicia sessió a Puter (Configuració) o canvia a Cloudflare SDXL.');
+    throw new Error('Error Puter: ' + e.message);
   }
 }
 
@@ -2017,29 +2140,6 @@ async function cleanTestPosts() {
     const data = await res.json();
     if (data.success) {
       toast('✓ Posts de test eliminats. Pendents restants: ' + data.pending);
-      checkPublisherStatus();
-    } else {
-      toast('Error: ' + (data.error || 'desconegut'));
-    }
-  } catch(e) {
-    toast('Error: ' + e.message);
-  }
-}
-
-// ── Netejar tota la carpeta uploads/ ─────────────────────────────────────────
-async function clearUploadsFolder() {
-  if (!confirm('⚠️ ATENCIÓ: Això eliminarà TOTES les imatges de la carpeta uploads/.\n\nEstàs segur?')) return;
-  if (!confirm('Segona confirmació: Vols eliminar totes les imatges? Aquesta acció no es pot desfer.')) return;
-
-  try {
-    const res = await fetch(PUBLISHER_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: CRON_SECRET, action: 'clear_uploads' })
-    });
-    const data = await res.json();
-    if (data.success) {
-      toast('✓ ' + data.message);
       checkPublisherStatus();
     } else {
       toast('Error: ' + (data.error || 'desconegut'));
