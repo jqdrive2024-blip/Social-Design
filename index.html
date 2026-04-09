@@ -917,7 +917,11 @@ async function testCloudflare() {
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant...'; }
   if (status) status.textContent = '';
   try {
-    saveCloudflareCfg();
+    // Guarda nomes si els camps UI tenen valor; si no, usa localStorage existent
+    const uiAccId = document.getElementById('cfAccountId')?.value?.trim();
+    const uiTok   = document.getElementById('cfApiToken')?.value?.trim();
+    if (uiAccId) localStorage.setItem('sc_cf_account_id', uiAccId);
+    if (uiTok)   localStorage.setItem('sc_cf_api_token',  uiTok);
     await generateWithCloudflare('a simple blue circle on white background', false);
     if (status) status.innerHTML = '<span style="color:var(--green)">✓ Cloudflare SDXL funciona correctament!</span>';
     toast('✓ Cloudflare Workers AI connectat!');
