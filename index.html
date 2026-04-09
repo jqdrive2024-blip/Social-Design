@@ -209,8 +209,7 @@ select option{background:var(--surface2)}
 
   /* Bottom navigation bar */
   .mobile-nav{
-    display:flex;
-    position:fixed;bottom:0;left:0;right:0;
+    display:flex;position:fixed;bottom:0;left:0;right:0;
     background:var(--surface);border-top:1px solid var(--border);
     z-index:90;height:64px;
     padding:0 4px env(safe-area-inset-bottom);
@@ -378,7 +377,7 @@ select option{background:var(--surface2)}
     <!-- GENERAR -->
     <div id="sec-generate" class="content">
       <div class="kbar">
-        <span class="lbl">🤖 Textos: GPT-4o-mini · Imatges: Nanobanana (FLUX)</span>
+        <span class="lbl">🤖 Textos: GPT-4o-mini · Imatges: Gemini/Imagen</span>
         <span class="kst on" id="nbSt">Actiu</span>
       </div>
       <div class="gform">
@@ -519,7 +518,7 @@ select option{background:var(--surface2)}
       <!-- Generades tab -->
       <div id="lib-generated" style="display:none">
         <div class="bo-gen-area">
-          <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb Nanobanana</h3>
+          <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb IA</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
             <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: plat de bravas crujients amb salsa especial de la casa, fotografia professional de menjar..."></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -631,8 +630,47 @@ select option{background:var(--surface2)}
           <div id="cfGeminiConfig" style="display:none;padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);margin-top:4px">
             <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px">
               ✨ Google Gemini Imagen
-              <span style="font-size:11px;font-weight:400;color:var(--text3)">— gemini-2.0-flash-exp-image-generation</span>
+              <span style="font-size:11px;font-weight:400;color:var(--text3)">— Models compatibles amb la teva API Key</span>
             </div>
+            
+            <!-- Selector de modelo específico -->
+            <div class="fg" style="margin-bottom:16px">
+              <label>Model d'imatge específic</label>
+              <select id="cfgGeminiModel" onchange="saveGeminiModel()" style="width:100%;background:var(--surface3);border:1px solid var(--border2);color:var(--text);padding:10px 14px;border-radius:var(--rs);font-size:14px;font-family:'DM Sans',sans-serif;outline:none;cursor:pointer">
+                <optgroup label="Nano Banana (Recomanats per imatges)">
+                  <option value="models/gemini-2.5-flash-image">🍌 Nano Banana (2.5 Flash Image)</option>
+                  <option value="models/gemini-3-pro-image-preview">🍌 Pro Nano Banana (3 Pro Image)</option>
+                  <option value="models/gemini-3.1-flash-image-preview">🍌 Nano Banana 2 (3.1 Flash Image)</option>
+                </optgroup>
+                <optgroup label="Imagen 4 (Models Vertex)">
+                  <option value="models/imagen-4.0-generate-001">🎨 Imagen 4</option>
+                  <option value="models/imagen-4.0-ultra-generate-001">🎨 Imagen 4 Ultra</option>
+                  <option value="models/imagen-4.0-fast-generate-001">⚡ Imagen 4 Fast</option>
+                </optgroup>
+                <optgroup label="Flash (Multimodal)">
+                  <option value="models/gemini-2.5-flash">⚡ Gemini 2.5 Flash</option>
+                  <option value="models/gemini-2.0-flash">⚡ Gemini 2.0 Flash</option>
+                  <option value="models/gemini-2.0-flash-001">⚡ Gemini 2.0 Flash 001</option>
+                  <option value="models/gemini-2.0-flash-lite">💨 Gemini 2.0 Flash-Lite</option>
+                  <option value="models/gemini-2.5-flash-lite">💨 Gemini 2.5 Flash-Lite</option>
+                </optgroup>
+                <optgroup label="Pro (Alta qualitat)">
+                  <option value="models/gemini-2.5-pro">🧠 Gemini 2.5 Pro</option>
+                  <option value="models/gemini-3-pro-preview">🧠 Gemini 3 Pro Preview</option>
+                  <option value="models/gemini-3.1-pro-preview">🧠 Gemini 3.1 Pro Preview</option>
+                </optgroup>
+                <optgroup label="Altres models">
+                  <option value="models/gemini-flash-latest">🔄 Gemini Flash Latest</option>
+                  <option value="models/gemini-pro-latest">🔄 Gemini Pro Latest</option>
+                  <option value="models/gemma-3-27b-it">📦 Gemma 3 27B</option>
+                  <option value="models/gemma-4-31b-it">📦 Gemma 4 31B</option>
+                </optgroup>
+              </select>
+              <span style="font-size:11px;color:var(--text3);margin-top:4px;display:block">
+                Selecciona el model compatible amb la teva API Key de Google AI Studio
+              </span>
+            </div>
+
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
               <div class="fg">
                 <label>API Key de Gemini</label>
@@ -899,17 +937,19 @@ function getGeminiKey() {
 
 // ── Model selector ───────────────────────────────────────────────────────────
 const MODEL_INFO = {
-  gemini:     '✨ Millor qualitat · Requereix API Key gratuïta de Google · Imatges en base64',
+  gemini:     '✨ Models Nano Banana i Imagen 4 · Requereix API Key gratuïta de Google · Imatges en base64',
   cloudflare: '☁️ Alta qualitat (SDXL) · 10.000 passes/dia gratis · Requereix compte Cloudflare',
   puter:      '⚡ Gratuït sense configuració · Qualitat bàsica (FLUX.1-schnell) · Requereix sessió Puter',
 };
 
 function getImgModel() { return localStorage.getItem('sc_img_model') || 'gemini'; }
+
 function saveImgModel() {
   const sel = document.getElementById('cfgImgModel')?.value || 'gemini';
   localStorage.setItem('sc_img_model', sel);
   updateModelUI(sel);
 }
+
 function updateModelUI(model) {
   const info = document.getElementById('modelInfo');
   if (info) info.textContent = MODEL_INFO[model] || '';
@@ -918,23 +958,47 @@ function updateModelUI(model) {
   const geminiPanel = document.getElementById('cfGeminiConfig');
   if (geminiPanel) geminiPanel.style.display = model === 'gemini' ? 'block' : 'none';
 }
+
 function loadImgModelUI() {
   const model = getImgModel();
   const el = document.getElementById('cfgImgModel');
   if (el) el.value = model;
   updateModelUI(model);
+  
   // Load Cloudflare credentials
   const accId = localStorage.getItem('sc_cf_account_id') || '';
   const tok   = localStorage.getItem('sc_cf_api_token')  || '';
   if (document.getElementById('cfAccountId')) document.getElementById('cfAccountId').value = accId;
   if (document.getElementById('cfApiToken'))  document.getElementById('cfApiToken').value  = tok;
+  
   // Load Gemini key into the AI section input
   const gemKey = localStorage.getItem('sc_gemini_key') || '';
   const gemImgEl = document.getElementById('cfGeminiKeyImg');
   if (gemImgEl && gemKey) gemImgEl.value = gemKey;
   const workerEl = document.getElementById('cfGeminiWorkerUrl');
   if (workerEl) workerEl.value = localStorage.getItem('sc_gemini_worker_url') || '';
+  
+  // Load Gemini model selector
+  loadGeminiModelUI();
 }
+
+// ── Gemini Model Selector ────────────────────────────────────────────────────
+function getGeminiModel() {
+  return localStorage.getItem('sc_gemini_model') || 'models/gemini-2.5-flash-image';
+}
+
+function saveGeminiModel() {
+  const sel = document.getElementById('cfgGeminiModel')?.value || 'models/gemini-2.5-flash-image';
+  localStorage.setItem('sc_gemini_model', sel);
+  toast('✓ Model Gemini desat: ' + sel.split('/').pop());
+}
+
+function loadGeminiModelUI() {
+  const model = getGeminiModel();
+  const el = document.getElementById('cfgGeminiModel');
+  if (el) el.value = model;
+}
+
 function saveCloudflareCfg() {
   const accId = document.getElementById('cfAccountId')?.value?.trim() || '';
   const tok   = document.getElementById('cfApiToken')?.value?.trim()  || '';
@@ -946,12 +1010,14 @@ function saveCloudflareCfg() {
 function saveGeminiCfgImg() {
   const key = document.getElementById('cfGeminiKeyImg')?.value?.trim() || '';
   const workerUrl = document.getElementById('cfGeminiWorkerUrl')?.value?.trim() || '';
+  const model = document.getElementById('cfgGeminiModel')?.value?.trim() || '';
   if (!key) { toast('⚠️ Entra una API Key vàlida'); return; }
   localStorage.setItem('sc_gemini_key', key);
   if (workerUrl) localStorage.setItem('sc_gemini_worker_url', workerUrl);
+  if (model) localStorage.setItem('sc_gemini_model', model);
   const cfgEl = document.getElementById('cfgGeminiKey');
   if (cfgEl) cfgEl.value = key;
-  toast('✓ Gemini desat' + (workerUrl ? ' (amb Worker URL)' : ''));
+  toast('✓ Gemini desat' + (workerUrl ? ' (amb Worker URL)' : '') + (model ? ' · Model: ' + model.split('/').pop() : ''));
 }
 
 function getGeminiWorkerUrl() {
@@ -961,21 +1027,26 @@ function getGeminiWorkerUrl() {
 async function testGeminiConnection() {
   const btn = document.getElementById('geminiTestBtn');
   const status = document.getElementById('geminiTestStatus');
-  // Guardar key i worker URL SEMPRE abans de provar
+  
+  // Guardar key, worker URL i model SEMPRE abans de provar
   const keyInput = document.getElementById('cfGeminiKeyImg')?.value?.trim();
   const workerInput = document.getElementById('cfGeminiWorkerUrl')?.value?.trim();
+  const modelInput = document.getElementById('cfgGeminiModel')?.value?.trim();
+  
   if (keyInput) {
     localStorage.setItem('sc_gemini_key', keyInput);
     const cfgEl = document.getElementById('cfgGeminiKey');
     if (cfgEl) cfgEl.value = keyInput;
   }
   if (workerInput) localStorage.setItem('sc_gemini_worker_url', workerInput);
+  if (modelInput) localStorage.setItem('sc_gemini_model', modelInput);
   
   const workerUrl = localStorage.getItem('sc_gemini_worker_url') || '';
   const usingWorker = !!workerUrl;
   
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant...'; }
   if (status) status.textContent = usingWorker ? 'Via Cloudflare Worker...' : 'Via proxy directe...';
+  
   try {
     const result = await generateWithGemini('a small blue circle on white background', false);
     const workingModel = localStorage.getItem('sc_gemini_working_model') || '';
@@ -1110,50 +1181,12 @@ function buildImagePrompt(prompt, isStory) {
   return `${theme}, ${prompt}, professional photography, editorial style, ${orient}, shallow depth of field, elegant natural lighting, ultra detailed 8k resolution, clean minimal background`;
 }
 
-// ── Gemini Image Generation — prova models i versions de API ─────────────────
-// Google canvia els noms de model i versions; els provem tots en ordre
-const GEMINI_IMG_ENDPOINTS = [
-  // Model recomanat per imatges, versió alpha (on sol estar disponible)
-  { model: 'gemini-2.0-flash-exp-image-generation', version: 'v1alpha' },
-  { model: 'gemini-2.0-flash-exp-image-generation', version: 'v1beta'  },
-  { model: 'gemini-2.0-flash-exp',                  version: 'v1alpha' },
-  { model: 'gemini-2.0-flash-exp',                  version: 'v1beta'  },
-  { model: 'gemini-2.0-flash',                      version: 'v1beta'  },
-  { model: 'gemini-2.0-flash',                      version: 'v1alpha' },
-];
-
-async function tryGeminiModel(modelName, apiVersion, apiKey, fullPrompt) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: fullPrompt }] }],
-        generationConfig: { responseModalities: ['TEXT', 'IMAGE'] }
-      })
-    }
-  );
-  if (!res.ok) {
-    const errText = await res.text();
-    let msg = '';
-    try { msg = JSON.parse(errText)?.error?.message || errText.slice(0, 200); } catch(x) { msg = errText.slice(0, 200); }
-    throw new Error('HTTP ' + res.status + ' (' + apiVersion + '/' + modelName + '): ' + msg);
-  }
-  const data = await res.json();
-  const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
-  if (!part?.inlineData?.data) {
-    throw new Error('sense imatge a la resposta (model de text?) — ' + apiVersion + '/' + modelName);
-  }
-  return {
-    url: 'data:' + (part.inlineData.mimeType || 'image/png') + ';base64,' + part.inlineData.data,
-    label: '✨ Gemini (' + modelName + ')'
-  };
-}
-
+// ── Gemini Image Generation — amb selector de model ──────────────────────────
 async function generateWithGemini(prompt, isStory) {
   const apiKey = getGeminiKey();
   if (!apiKey) throw new Error('No hi ha Gemini API Key. Afegeix-la al panell de Generació d\'imatges.');
+  
+  const model = getGeminiModel();
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const workerUrl = getGeminiWorkerUrl();
 
@@ -1164,7 +1197,11 @@ async function generateWithGemini(prompt, isStory) {
   const res = await fetch(proxyUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: apiKey, prompt: fullPrompt })
+    body: JSON.stringify({ 
+      api_key: apiKey, 
+      prompt: fullPrompt,
+      model: model  // <-- Enviem el model seleccionat al proxy
+    })
   });
 
   if (!res.ok) throw new Error('Error de xarxa amb el proxy Gemini (HTTP ' + res.status + ')');
@@ -1172,12 +1209,12 @@ async function generateWithGemini(prompt, isStory) {
   const data = await res.json();
   if (!data.success) throw new Error(data.error || 'Error desconegut del proxy Gemini');
 
-  console.log('✓ Gemini OK via ' + (workerUrl ? 'Worker' : 'proxy') + ', model:', data.model_used);
-  localStorage.setItem('sc_gemini_working_model', data.model_used || '');
+  console.log('✓ Gemini OK via ' + (workerUrl ? 'Worker' : 'proxy') + ', model:', data.model_used || model);
+  localStorage.setItem('sc_gemini_working_model', data.model_used || model);
 
   return {
     url: data.image,
-    label: '✨ Gemini (' + (data.model_used?.split('/')[1] || 'proxy') + ')'
+    label: '✨ Gemini (' + (data.model_used?.split('/').pop() || model.split('/').pop()) + ')'
   };
 }
 
@@ -1757,7 +1794,7 @@ function renderProps() {
       <div class="cact">
         <button class="bsel" onclick="toggleSel('${p.id}')">Seleccionar</button>
         <button class="bedit" onclick="openPrev('${p.id}')">Editar</button>
-        <button class="bgen" id="imgbtn-${p.id}" onclick="genImageForProp('${p.id}')" title="Generar imatge amb Nanobanana">🤖 IA</button>
+        <button class="bgen" id="imgbtn-${p.id}" onclick="genImageForProp('${p.id}')" title="Generar imatge amb IA">🤖 IA</button>
         <button class="bgen" onclick="pickImageForProp('${p.id}')" title="Triar de la librería">🖼 Lib</button>
       </div>
     </div>`).join('');
@@ -2297,6 +2334,7 @@ async function repushAllScheduled() {
 }
 
 async function testSavePendingPost() {
+  const btn = document.getElementById('testPubBtn');
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Testejant...'; }
   try {
     // 1. Test connexió bàsica
@@ -2542,7 +2580,7 @@ function igIsConnected() { return !!(igToken && igUserId); }
 function updateIgConnectUI() {
   const statusEl = document.getElementById('igConnectStatus');
   const nameEl   = document.getElementById('igConnectName');
-  const btnEl    = document.getElementById('igConnectBtn');
+  const btnEl    = document.getElementById('igTestBtn');
   const disconnBtn = document.getElementById('igDisconnectBtn');
   if (!statusEl) return;
   if (igIsConnected()) {
