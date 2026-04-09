@@ -631,7 +631,7 @@ select option{background:var(--surface2)}
           <div id="cfGeminiConfig" style="display:none;padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);margin-top:4px">
             <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px">
               ✨ Google Gemini Imagen
-              <span style="font-size:11px;font-weight:400;color:var(--text3)">— Model: gemini-2.0-flash-preview-image-generation</span>
+              <span style="font-size:11px;font-weight:400;color:var(--text3)">— gemini-2.0-flash-exp-image-generation</span>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
               <div class="fg">
@@ -641,14 +641,12 @@ select option{background:var(--surface2)}
                   Gratuïta a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com →</a>
                 </span>
               </div>
-              <div class="fg" style="justify-content:flex-end">
-                <div style="padding:10px 12px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs);font-size:11px;color:var(--text3);line-height:1.7">
-                  💡 <strong style="color:var(--text2)">Com obtenir la key:</strong><br>
-                  1. Vés a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a><br>
-                  2. Crea un projecte a Google Cloud<br>
-                  3. Activa el <strong>billing</strong> (necessari per Imagen)<br>
-                  4. Copia la API Key i enganxa-la aquí
-                </div>
+              <div class="fg">
+                <label>Cloudflare Worker URL</label>
+                <input type="url" id="cfGeminiWorkerUrl" placeholder="https://gemini-proxy.EL-TEU-USUARI.workers.dev" autocomplete="off">
+                <span style="font-size:11px;color:var(--text3);margin-top:3px">
+                  URL del teu Worker (evita el bloqueig EU) · <a href="https://dash.cloudflare.com/?to=/:account/workers" target="_blank" style="color:var(--accent)">Crear Worker →</a>
+                </span>
               </div>
             </div>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
@@ -873,6 +871,7 @@ const firebaseConfig = {
 
 const SCRAPER_URL = 'https://jordiqterrassa.com/scraper.php';
 const PUBLISHER_URL = 'https://jordiqterrassa.com/publisher.php';
+const GEMINI_PROXY_URL = 'https://jordiqterrassa.com/gemini-proxy.php';
 const CRON_SECRET = 'social_design_2025_secret'; // Canvia-ho i posa el mateix al publisher.php
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
@@ -933,6 +932,8 @@ function loadImgModelUI() {
   const gemKey = localStorage.getItem('sc_gemini_key') || '';
   const gemImgEl = document.getElementById('cfGeminiKeyImg');
   if (gemImgEl && gemKey) gemImgEl.value = gemKey;
+  const workerEl = document.getElementById('cfGeminiWorkerUrl');
+  if (workerEl) workerEl.value = localStorage.getItem('sc_gemini_worker_url') || '';
 }
 function saveCloudflareCfg() {
   const accId = document.getElementById('cfAccountId')?.value?.trim() || '';
@@ -944,12 +945,17 @@ function saveCloudflareCfg() {
 
 function saveGeminiCfgImg() {
   const key = document.getElementById('cfGeminiKeyImg')?.value?.trim() || '';
+  const workerUrl = document.getElementById('cfGeminiWorkerUrl')?.value?.trim() || '';
   if (!key) { toast('⚠️ Entra una API Key vàlida'); return; }
   localStorage.setItem('sc_gemini_key', key);
-  // Sync with the config section input too
+  if (workerUrl) localStorage.setItem('sc_gemini_worker_url', workerUrl);
   const cfgEl = document.getElementById('cfgGeminiKey');
   if (cfgEl) cfgEl.value = key;
-  toast('✓ Gemini API Key desada');
+  toast('✓ Gemini desat' + (workerUrl ? ' (amb Worker URL)' : ''));
+}
+
+function getGeminiWorkerUrl() {
+  return localStorage.getItem('sc_gemini_worker_url') || '';
 }
 
 async function testGeminiConnection() {
@@ -963,7 +969,7 @@ async function testGeminiConnection() {
     if (cfgEl) cfgEl.value = keyInput;
   }
   if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant models...'; }
-  if (status) status.textContent = 'Provant ' + GEMINI_IMG_MODELS.length + ' models...';
+  if (status) status.textContent = 'Provant ' + GEMINI_IMG_ENDPOINTS.length + ' models...';
   try {
     const result = await generateWithGemini('a small blue circle on white background', false);
     const workingModel = localStorage.getItem('sc_gemini_working_model') || '';
@@ -1101,18 +1107,21 @@ function buildImagePrompt(prompt, isStory) {
   return `${theme}, ${prompt}, professional photography, editorial style, ${orient}, shallow depth of field, elegant natural lighting, ultra detailed 8k resolution, clean minimal background`;
 }
 
-// ── Gemini Image Generation — prova models en ordre de preferència ────────────
-// Google canvia els noms de model sovint; els provem en ordre fins trobar un que funcioni
-const GEMINI_IMG_MODELS = [
-  'gemini-2.0-flash-exp-image-generation',
-  'gemini-2.0-flash-exp',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
+// ── Gemini Image Generation — prova models i versions de API ─────────────────
+// Google canvia els noms de model i versions; els provem tots en ordre
+const GEMINI_IMG_ENDPOINTS = [
+  // Model recomanat per imatges, versió alpha (on sol estar disponible)
+  { model: 'gemini-2.0-flash-exp-image-generation', version: 'v1alpha' },
+  { model: 'gemini-2.0-flash-exp-image-generation', version: 'v1beta'  },
+  { model: 'gemini-2.0-flash-exp',                  version: 'v1alpha' },
+  { model: 'gemini-2.0-flash-exp',                  version: 'v1beta'  },
+  { model: 'gemini-2.0-flash',                      version: 'v1beta'  },
+  { model: 'gemini-2.0-flash',                      version: 'v1alpha' },
 ];
 
-async function tryGeminiModel(modelName, apiKey, fullPrompt) {
+async function tryGeminiModel(modelName, apiVersion, apiKey, fullPrompt) {
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/${apiVersion}/models/${modelName}:generateContent?key=${apiKey}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1126,13 +1135,12 @@ async function tryGeminiModel(modelName, apiKey, fullPrompt) {
     const errText = await res.text();
     let msg = '';
     try { msg = JSON.parse(errText)?.error?.message || errText.slice(0, 200); } catch(x) { msg = errText.slice(0, 200); }
-    throw new Error('HTTP ' + res.status + ': ' + msg);
+    throw new Error('HTTP ' + res.status + ' (' + apiVersion + '/' + modelName + '): ' + msg);
   }
   const data = await res.json();
   const part = data?.candidates?.[0]?.content?.parts?.find(p => p.inlineData);
   if (!part?.inlineData?.data) {
-    // Model respòn però sense imatge (p.ex. model de text pur)
-    throw new Error('sense imatge a la resposta (model de text?)');
+    throw new Error('sense imatge a la resposta (model de text?) — ' + apiVersion + '/' + modelName);
   }
   return {
     url: 'data:' + (part.inlineData.mimeType || 'image/png') + ';base64,' + part.inlineData.data,
@@ -1144,27 +1152,30 @@ async function generateWithGemini(prompt, isStory) {
   const apiKey = getGeminiKey();
   if (!apiKey) throw new Error('No hi ha Gemini API Key. Afegeix-la al panell de Generació d\'imatges.');
   const fullPrompt = buildImagePrompt(prompt, isStory);
+  const workerUrl = getGeminiWorkerUrl();
 
-  let lastError = '';
-  for (const model of GEMINI_IMG_MODELS) {
-    try {
-      console.log('Provant Gemini model:', model);
-      const result = await tryGeminiModel(model, apiKey, fullPrompt);
-      console.log('✓ Gemini OK amb model:', model);
-      // Guardar el model que ha funcionat per fer-lo servir primer la propera vegada
-      localStorage.setItem('sc_gemini_working_model', model);
-      return result;
-    } catch(e) {
-      console.warn('Model', model, 'falló:', e.message);
-      lastError = e.message;
-      // Si és error d'autenticació/quota no té sentit provar més models
-      if (/401|403|API_KEY_INVALID|PERMISSION_DENIED|billing/i.test(e.message)) {
-        throw new Error('Gemini auth/billing error: ' + e.message);
-      }
-      // 404 = model no existeix, continuem provant
-    }
-  }
-  throw new Error('Cap model Gemini ha funcionat. Últim error: ' + lastError);
+  // Si hi ha Worker URL, cridem el Worker de Cloudflare (evita bloqueig EU)
+  // Si no, provem directament (funciona fora de l'EU o amb VPN)
+  const proxyUrl = workerUrl || GEMINI_PROXY_URL;
+
+  const res = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey, prompt: fullPrompt })
+  });
+
+  if (!res.ok) throw new Error('Error de xarxa amb el proxy Gemini (HTTP ' + res.status + ')');
+
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || 'Error desconegut del proxy Gemini');
+
+  console.log('✓ Gemini OK via ' + (workerUrl ? 'Worker' : 'proxy') + ', model:', data.model_used);
+  localStorage.setItem('sc_gemini_working_model', data.model_used || '');
+
+  return {
+    url: data.image,
+    label: '✨ Gemini (' + (data.model_used?.split('/')[1] || 'proxy') + ')'
+  };
 }
 
 async function generateImageNb(prompt, isStory) {
