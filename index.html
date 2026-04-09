@@ -900,24 +900,16 @@ async function generateWithCloudflare(prompt, isStory) {
   const fullPrompt = buildImagePrompt(prompt, isStory);
   const width  = isStory ? 768  : 1024;
   const height = isStory ? 1344 : 1024;
-  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/stabilityai/stable-diffusion-xl-base-1.0`;
-  const res = await fetch(url, {
+  // Proxy PHP per evitar CORS (l'API de Cloudflare no permet peticions directes des del navegador)
+  const proxyUrl = 'https://jordiqterrassa.com/cloudflare-proxy.php';
+  const res = await fetch(proxyUrl, {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiToken}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: fullPrompt, num_steps: 20, width, height })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account_id: accountId, api_token: apiToken, prompt: fullPrompt, num_steps: 20, width, height })
   });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Cloudflare HTTP ${res.status}: ${err.slice(0, 120)}`);
-  }
-  // Cloudflare retorna la imatge com a binary stream
-  const blob = await res.blob();
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result); // data:image/png;base64,...
-    reader.onerror = () => reject(new Error('Error convertint imatge Cloudflare'));
-    reader.readAsDataURL(blob);
-  });
+  const data = await res.json();
+  if (!res.ok || data.error) throw new Error(data.error || `Cloudflare HTTP ${res.status}`);
+  return data.image; // data:image/png;base64,...
 }
 async function testCloudflare() {
   const btn = document.getElementById('cfTestBtn');
