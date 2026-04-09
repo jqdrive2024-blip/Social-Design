@@ -179,6 +179,16 @@ select option{background:var(--surface2)}
 /* Toast */
 .toast{position:fixed;bottom:24px;right:24px;background:var(--surface);border:1px solid var(--accent);color:var(--accent);padding:12px 20px;border-radius:var(--rs);font-size:13px;transform:translateY(100px);opacity:0;transition:all .3s;z-index:200;max-width:340px}
 .toast.show{transform:translateY(0);opacity:1}
+/* Image zoom button */
+.zoom-btn{position:absolute;bottom:8px;right:8px;z-index:10;background:rgba(0,0,0,.65);border:none;color:#fff;width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:background .15s;backdrop-filter:blur(4px)}
+.zoom-btn:hover{background:rgba(167,139,250,.8)}
+/* Image zoom overlay */
+.img-zoom-ov{position:fixed;inset:0;background:rgba(0,0,0,.92);display:flex;align-items:center;justify-content:center;z-index:500;opacity:0;pointer-events:none;transition:opacity .2s}
+.img-zoom-ov.open{opacity:1;pointer-events:all}
+.img-zoom-inner{position:relative;max-width:90vw;max-height:90vh;display:flex;align-items:center;justify-content:center}
+.img-zoom-inner img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:var(--r);box-shadow:0 24px 80px rgba(0,0,0,.8)}
+.img-zoom-close{position:fixed;top:20px;right:24px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);color:#fff;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:20px;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.img-zoom-close:hover{background:rgba(255,255,255,.2)}
 /* Init */
 .init-screen{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:300;gap:16px}
 .init-screen h1{font-family:'Space Grotesk',sans-serif;font-size:32px;color:var(--accent)}
@@ -617,6 +627,37 @@ select option{background:var(--surface2)}
             </div>
           </div>
 
+          <!-- Gemini config (visible only when gemini selected) -->
+          <div id="cfGeminiConfig" style="display:none;padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);margin-top:4px">
+            <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px">
+              ✨ Google Gemini Imagen
+              <span style="font-size:11px;font-weight:400;color:var(--text3)">— Model: gemini-2.0-flash-preview-image-generation</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+              <div class="fg">
+                <label>API Key de Gemini</label>
+                <input type="password" id="cfGeminiKeyImg" placeholder="AIzaSy..." autocomplete="off">
+                <span style="font-size:11px;color:var(--text3);margin-top:3px">
+                  Gratuïta a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com →</a>
+                </span>
+              </div>
+              <div class="fg" style="justify-content:flex-end">
+                <div style="padding:10px 12px;background:rgba(167,139,250,.06);border:1px solid rgba(167,139,250,.15);border-radius:var(--rs);font-size:11px;color:var(--text3);line-height:1.7">
+                  💡 <strong style="color:var(--text2)">Com obtenir la key:</strong><br>
+                  1. Vés a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a><br>
+                  2. Crea un projecte a Google Cloud<br>
+                  3. Activa el <strong>billing</strong> (necessari per Imagen)<br>
+                  4. Copia la API Key i enganxa-la aquí
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <button class="bp" onclick="saveGeminiCfgImg()" style="font-size:12px;padding:8px 16px">Guardar Gemini Key</button>
+              <button class="bs" onclick="testGeminiConnection()" id="geminiTestBtn" style="font-size:12px;padding:8px 16px">🔍 Provar connexió</button>
+              <span id="geminiTestStatus" style="font-size:12px;color:var(--text3)"></span>
+            </div>
+          </div>
+
           <!-- Cloudflare config (visible only when cloudflare selected) -->
           <div id="cfCloudflareConfig" style="display:none;padding:16px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border2);margin-top:4px">
             <div style="font-size:13px;font-weight:500;margin-bottom:14px;display:flex;align-items:center;gap:8px">
@@ -807,6 +848,14 @@ select option{background:var(--surface2)}
   </div>
 </div>
 
+<!-- Image Zoom Lightbox -->
+<div class="img-zoom-ov" id="imgZoomOv" onclick="closeImgZoom(event)">
+  <div class="img-zoom-inner">
+    <img id="imgZoomImg" src="" alt="">
+  </div>
+  <button class="img-zoom-close" onclick="closeImgZoom()">✕</button>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -867,6 +916,8 @@ function updateModelUI(model) {
   if (info) info.textContent = MODEL_INFO[model] || '';
   const cfPanel = document.getElementById('cfCloudflareConfig');
   if (cfPanel) cfPanel.style.display = model === 'cloudflare' ? 'block' : 'none';
+  const geminiPanel = document.getElementById('cfGeminiConfig');
+  if (geminiPanel) geminiPanel.style.display = model === 'gemini' ? 'block' : 'none';
 }
 function loadImgModelUI() {
   const model = getImgModel();
@@ -878,6 +929,10 @@ function loadImgModelUI() {
   const tok   = localStorage.getItem('sc_cf_api_token')  || '';
   if (document.getElementById('cfAccountId')) document.getElementById('cfAccountId').value = accId;
   if (document.getElementById('cfApiToken'))  document.getElementById('cfApiToken').value  = tok;
+  // Load Gemini key into the AI section input
+  const gemKey = localStorage.getItem('sc_gemini_key') || '';
+  const gemImgEl = document.getElementById('cfGeminiKeyImg');
+  if (gemImgEl && gemKey) gemImgEl.value = gemKey;
 }
 function saveCloudflareCfg() {
   const accId = document.getElementById('cfAccountId')?.value?.trim() || '';
@@ -885,6 +940,47 @@ function saveCloudflareCfg() {
   localStorage.setItem('sc_cf_account_id', accId);
   localStorage.setItem('sc_cf_api_token',  tok);
   toast('✓ Cloudflare desat');
+}
+
+function saveGeminiCfgImg() {
+  const key = document.getElementById('cfGeminiKeyImg')?.value?.trim() || '';
+  if (!key) { toast('⚠️ Entra una API Key vàlida'); return; }
+  localStorage.setItem('sc_gemini_key', key);
+  // Sync with the config section input too
+  const cfgEl = document.getElementById('cfgGeminiKey');
+  if (cfgEl) cfgEl.value = key;
+  toast('✓ Gemini API Key desada');
+}
+
+async function testGeminiConnection() {
+  const btn = document.getElementById('geminiTestBtn');
+  const status = document.getElementById('geminiTestStatus');
+  // Save key first if there's a value in the input
+  const keyInput = document.getElementById('cfGeminiKeyImg')?.value?.trim();
+  if (keyInput) {
+    localStorage.setItem('sc_gemini_key', keyInput);
+    const cfgEl = document.getElementById('cfgGeminiKey');
+    if (cfgEl) cfgEl.value = keyInput;
+  }
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Provant...'; }
+  if (status) status.textContent = '';
+  try {
+    await generateWithGemini('a small blue circle on white background', false);
+    if (status) status.innerHTML = '<span style="color:var(--green)">✓ Gemini funciona correctament!</span>';
+    toast('✓ Gemini Imagen connectat!');
+  } catch(e) {
+    let msg = e.message.slice(0, 100);
+    // Provide friendlier error hints
+    if (/403|billing|quota|PERMISSION_DENIED/i.test(msg)) {
+      msg += ' → Activa el billing al projecte Google Cloud';
+    } else if (/401|API_KEY_INVALID/i.test(msg)) {
+      msg += ' → Revisa que la API Key sigui correcta';
+    }
+    if (status) status.innerHTML = '<span style="color:var(--red)">✗ ' + msg + '</span>';
+    toast('❌ Gemini: ' + e.message.slice(0, 60));
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 Provar connexió'; }
+  }
 }
 
 // ── Cloudflare Workers AI — SDXL ─────────────────────────────────────────────
@@ -1310,6 +1406,7 @@ function renderIgGrid(images) {
         <img src="${src}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
           onload="this.previousElementSibling.style.display='none'"
           onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
+        <button class="zoom-btn" onclick="openImgZoom('${src}',event)" title="Veure més gran">🔍</button>
       </div>
       <div class="bo-meta"><div class="bo-src">📷 Xarxes socials</div><div class="bo-caption">${img.caption?.slice(0,60)||''}</div></div>
       <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
@@ -1330,6 +1427,7 @@ function renderWebGrid(images) {
         <img src="${img.url}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
           onload="this.previousElementSibling.style.display='none'"
           onerror="this.previousElementSibling.innerHTML='<span style=\"font-size:20px\">⚠️</span>';this.style.display='none'">
+        <button class="zoom-btn" onclick="openImgZoom('${img.url}',event)" title="Veure més gran">🔍</button>
       </div>
       <div class="bo-meta"><div class="bo-src">🌐 Web</div></div>
       <div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button></div>
@@ -1348,7 +1446,10 @@ function renderGenGrid() {
     const idx = libImages.indexOf(img);
     return `
     <div class="bo-card" id="gencard-${img.idbId||idx}">
-      <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'">
+      <div style="position:relative;overflow:hidden">
+        <img src="${img.url}" alt="" loading="lazy" onerror="this.style.opacity='.2'" style="width:100%;display:block">
+        <button class="zoom-btn" onclick="openImgZoom('${img.url}',event)" title="Veure més gran">🔍</button>
+      </div>
       <div class="bo-meta"><div class="bo-src">${img.modelLabel||'🤖 IA Generada'}</div><div class="bo-caption">${img.prompt||''}</div></div>
       <div class="bo-act">
         <button class="bo-use" onclick="event.stopPropagation();useLibImage(${idx})">Usar</button>
@@ -2444,6 +2545,24 @@ async function igTestConnect() {
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = 'Verificar i connectar'; }
   }
+}
+
+// =====================================================
+// IMAGE ZOOM LIGHTBOX
+// =====================================================
+function openImgZoom(url, e) {
+  if (e) e.stopPropagation();
+  const ov = document.getElementById('imgZoomOv');
+  const img = document.getElementById('imgZoomImg');
+  if (!ov || !img) return;
+  img.src = url;
+  ov.classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+function closeImgZoom(e) {
+  if (e && e.target !== document.getElementById('imgZoomOv') && !e.target.classList.contains('img-zoom-close')) return;
+  document.getElementById('imgZoomOv')?.classList.remove('open');
+  document.body.style.overflow = '';
 }
 
 function igDisconnect() {
