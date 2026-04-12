@@ -352,6 +352,11 @@ select option{background:var(--surface2)}
         <div class="sync-dot" id="syncDotMob"></div>
         <span id="syncTxtMob" style="color:var(--text3)">Desconectado</span>
       </div>
+      <div style="padding:10px 16px 16px;display:flex;align-items:center;gap:10px">
+        <div class="user-av" id="userAvMob">👤</div>
+        <span style="flex:1;min-width:0;font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" id="userNameMob">Usuari</span>
+        <button class="btn-logout" onclick="logoutUser();closeDrawer()">Sortir</button>
+      </div>
     </div>
   </div>
 
@@ -509,6 +514,7 @@ select option{background:var(--surface2)}
         <button class="bo-tab active" onclick="switchLibTab('instagram',this)">📷 Xarxes socials</button>
         <button class="bo-tab" onclick="switchLibTab('web',this)">🌐 Web</button>
         <button class="bo-tab" onclick="switchLibTab('generated',this)">🤖 Generades IA</button>
+        <button class="bo-tab" onclick="switchLibTab('upload',this)">📁 Carregar</button>
       </div>
 
       <!-- Instagram tab -->
@@ -545,6 +551,28 @@ select option{background:var(--surface2)}
         </div>
         <div id="webGrid" class="bo-grid">
           <div class="bo-empty"><p>Entra una URL i clica "Extreure imatges"</p></div>
+        </div>
+      </div>
+
+      <!-- Carregar imatges tab -->
+      <div id="lib-upload" style="display:none">
+        <div class="bo-gen-area">
+          <h3 style="font-size:15px;font-weight:500;margin-bottom:8px">Carregar imatges a la biblioteca</h3>
+          <p style="font-size:13px;color:var(--text2);margin-bottom:16px">Puja imatges des del teu dispositiu per afegir-les directament a la biblioteca del client actiu.</p>
+          <div id="uploadDropZone" style="border:2px dashed var(--border2);border-radius:var(--r);padding:40px 20px;cursor:pointer;transition:all .2s;text-align:center"
+            ondragover="event.preventDefault();this.style.borderColor='var(--accent)';this.style.background='var(--accent-bg)'"
+            ondragleave="this.style.borderColor='var(--border2)';this.style.background='none'"
+            ondrop="handleUploadDrop(event)"
+            onclick="document.getElementById('uploadFileInput').click()">
+            <div style="font-size:36px;margin-bottom:12px">📁</div>
+            <p style="font-size:14px;color:var(--text);font-weight:500;margin-bottom:4px">Arrossega imatges aquí</p>
+            <p style="font-size:12px;color:var(--text3)">o clica per seleccionar · JPG, PNG, WebP, GIF</p>
+          </div>
+          <input type="file" id="uploadFileInput" multiple accept="image/*" style="display:none" onchange="handleUploadInput(event)">
+          <div id="uploadProgress" style="display:none;margin-top:12px;padding:10px 14px;background:var(--surface2);border-radius:var(--rs);font-size:13px;color:var(--text2)">Processant imatges...</div>
+        </div>
+        <div id="uploadGrid" class="bo-grid">
+          <div class="bo-empty"><p>Les imatges carregades apareixeran aquí</p></div>
         </div>
       </div>
 
@@ -1733,7 +1761,9 @@ function switchLibTab(tab, btn) {
   document.getElementById('lib-instagram').style.display = tab === 'instagram' ? 'block' : 'none';
   document.getElementById('lib-web').style.display = tab === 'web' ? 'block' : 'none';
   document.getElementById('lib-generated').style.display = tab === 'generated' ? 'block' : 'none';
+  document.getElementById('lib-upload').style.display = tab === 'upload' ? 'block' : 'none';
   if (tab === 'generated') renderGenGrid();
+  if (tab === 'upload') renderUploadGrid();
 }
 
 // =====================================================
@@ -2129,15 +2159,17 @@ function updateUserUI(user) {
   const bar = document.getElementById('userBar');
   const av = document.getElementById('userAv');
   const name = document.getElementById('userName');
-  if (!bar) return;
-  bar.style.display = 'flex';
-  if (user.photoURL) {
-    av.innerHTML = '<img src="' + user.photoURL + '" alt="">';
-  } else {
-    av.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
-  }
-  name.textContent = user.displayName || user.email || 'Usuari';
-  name.title = user.email || '';
+  if (bar) bar.style.display = 'flex';
+  const photo = user.photoURL ? '<img src="' + user.photoURL + '" alt="">' : (user.displayName || user.email || '?')[0].toUpperCase();
+  const displayName = user.displayName || user.email || 'Usuari';
+  if (av) av.innerHTML = typeof photo === 'string' && photo.startsWith('<') ? photo : '';
+  if (av && !user.photoURL) av.textContent = (user.displayName || user.email || '?')[0].toUpperCase();
+  if (name) { name.textContent = displayName; name.title = user.email || ''; }
+  // Mobile drawer
+  const avMob = document.getElementById('userAvMob');
+  const nameMob = document.getElementById('userNameMob');
+  if (avMob) { avMob.innerHTML = user.photoURL ? '<img src="' + user.photoURL + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">' : (user.displayName||user.email||'?')[0].toUpperCase(); }
+  if (nameMob) { nameMob.textContent = displayName; }
 }
 function setInitMsg(msg){document.getElementById('initMsg').textContent=msg;}
 function setSyncState(state,txt){
@@ -2199,7 +2231,7 @@ async function loadRestaurant(id) {
   // Restaurar imatges dels posts programats des d'IndexedDB
   restoreSchedImages();
   // Carregar imatges generades guardades (IndexedDB)
-  libImages = libImages.filter(i => i.source !== 'generated');
+  libImages = libImages.filter(i => i.source !== 'generated' && i.source !== 'upload');
   loadPersistedImages(id);
 }
 
@@ -2215,10 +2247,31 @@ async function changeRest() {
   const id = document.getElementById('restSel').value;
   if (id===currentRestId) return;
   setSyncState('spin','Cargando...');
+  // Netejar continguts de la sessió anterior
+  clearLibraryScreens();
+  proposals = [];
+  selIds.clear();
+  document.getElementById('propArea').style.display = 'none';
+  document.getElementById('propGrid').innerHTML = '';
   await loadRestaurant(id);
-  libImages = []; // Reset librería per nou restaurant
+  libImages = [];
   setSyncState('ok','Sincronizado');
-  toast('Restaurante cambiado');
+  toast('Client canviat');
+}
+
+function clearLibraryScreens() {
+  const empty = (id, msg) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '<div class="bo-empty"><p>' + msg + '</p></div>';
+  };
+  empty('igGrid', 'Entra un usuari d'Instagram i clica "Cargar imágenes"');
+  empty('webGrid', 'Entra una URL i clica "Extreure imatges"');
+  empty('genGrid', 'Les imatges generades apareixeran aquí');
+  empty('uploadGrid', 'Les imatges carregades apareixeran aquí');
+  // Reset inputs
+  const igInp = document.getElementById('igUsername'); if (igInp) igInp.value = '';
+  const webInp = document.getElementById('webUrl'); if (webInp) webInp.value = '';
+  const genInp = document.getElementById('genImgPrompt'); if (genInp) genInp.value = '';
 }
 
 async function addRest() {
@@ -2802,6 +2855,83 @@ async function igPublishPost(schedIdx) {
     toast('❌ Error publicant: ' + e.message.slice(0,80));
     if (btn) { btn.disabled = false; btn.textContent = '📱 Publicar'; }
   }
+}
+
+// =====================================================
+// UPLOAD TAB — Carregar imatges manualment
+// =====================================================
+function handleUploadDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadDropZone').style.borderColor = 'var(--border2)';
+  document.getElementById('uploadDropZone').style.background = 'none';
+  const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+  processUploadFiles(files);
+}
+
+function handleUploadInput(e) {
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  processUploadFiles(files);
+}
+
+function processUploadFiles(files) {
+  if (!files.length) return;
+  const prog = document.getElementById('uploadProgress');
+  prog.style.display = 'block';
+  prog.textContent = 'Processant ' + files.length + ' imatge(s)...';
+  let done = 0;
+  files.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = { url: ev.target.result, source: 'upload', caption: file.name.replace(/\.[^.]+$/, ''), type: 'post', restId: currentRestId };
+      addToLibrary(img);
+      idbSaveImage(img);
+      done++;
+      if (done === files.length) {
+        prog.style.display = 'none';
+        renderUploadGrid();
+        toast('✓ ' + done + ' imatge(s) afegides a la biblioteca');
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function renderUploadGrid() {
+  const uploaded = libImages.filter(i => i.source === 'upload' && i.restId === currentRestId);
+  const grid = document.getElementById('uploadGrid');
+  if (!uploaded.length) {
+    grid.innerHTML = '<div class="bo-empty"><p>Les imatges carregades apareixeran aquí</p></div>';
+    return;
+  }
+  grid.innerHTML = uploaded.map((img) => {
+    const idx = libImages.indexOf(img);
+    return \`
+    <div class="bo-card" onclick="pickOrUseLibImg(\${idx})">
+      <div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">
+        <img src="\${img.url}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
+          onerror="this.style.opacity='.2'">
+        <button class="zoom-btn" onclick="openImgZoom('\${img.url}',event)" title="Veure mes gran">🔍</button>
+      </div>
+      <div class="bo-meta">
+        <div class="bo-src">📁 Carregada</div>
+        <div class="bo-caption">\${(img.caption||'').slice(0,60)}</div>
+      </div>
+      <div class="bo-act">
+        <button class="bo-use" onclick="event.stopPropagation();useLibImage(\${idx})">Usar</button>
+        <button onclick="event.stopPropagation();deleteUploadImage(\${idx})" style="color:var(--red)" title="Eliminar">🗑</button>
+      </div>
+    </div>\`;
+  }).join('');
+}
+
+async function deleteUploadImage(libIdx) {
+  if (!confirm('Eliminar aquesta imatge de la biblioteca?')) return;
+  const img = libImages[libIdx];
+  if (img?.idbId) await idbDeleteImage(img.idbId);
+  libImages.splice(libIdx, 1);
+  renderUploadGrid();
+  toast('✓ Imatge eliminada');
 }
 
 // =====================================================
