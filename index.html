@@ -2264,7 +2264,7 @@ function clearLibraryScreens() {
     const el = document.getElementById(id);
     if (el) el.innerHTML = '<div class="bo-empty"><p>' + msg + '</p></div>';
   };
-  empty('igGrid', 'Entra un usuari d'Instagram i clica "Cargar imágenes"');
+  empty("igGrid", "Entra un usuari d'Instagram i clica Cargar imágenes");
   empty('webGrid', 'Entra una URL i clica "Extreure imatges"');
   empty('genGrid', 'Les imatges generades apareixeran aquí');
   empty('uploadGrid', 'Les imatges carregades apareixeran aquí');
@@ -2901,27 +2901,22 @@ function renderUploadGrid() {
   const uploaded = libImages.filter(i => i.source === 'upload' && i.restId === currentRestId);
   const grid = document.getElementById('uploadGrid');
   if (!uploaded.length) {
-    grid.innerHTML = '<div class="bo-empty"><p>Les imatges carregades apareixeran aquí</p></div>';
+    grid.innerHTML = '<div class="bo-empty"><p>Les imatges carregades apareixeran aqui</p></div>';
     return;
   }
   grid.innerHTML = uploaded.map((img) => {
     const idx = libImages.indexOf(img);
-    return \`
-    <div class="bo-card" onclick="pickOrUseLibImg(\${idx})">
-      <div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">
-        <img src="\${img.url}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1"
-          onerror="this.style.opacity='.2'">
-        <button class="zoom-btn" onclick="openImgZoom('\${img.url}',event)" title="Veure mes gran">🔍</button>
-      </div>
-      <div class="bo-meta">
-        <div class="bo-src">📁 Carregada</div>
-        <div class="bo-caption">\${(img.caption||'').slice(0,60)}</div>
-      </div>
-      <div class="bo-act">
-        <button class="bo-use" onclick="event.stopPropagation();useLibImage(\${idx})">Usar</button>
-        <button onclick="event.stopPropagation();deleteUploadImage(\${idx})" style="color:var(--red)" title="Eliminar">🗑</button>
-      </div>
-    </div>\`;
+    const cap = (img.caption||'').slice(0,60);
+    return '<div class="bo-card" onclick="pickOrUseLibImg('+idx+')">' +
+      '<div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">' +
+      '<img src="' + img.url + '" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:relative;z-index:1" onerror="this.style.opacity=\'.2\'">' +
+      '<button class="zoom-btn" onclick="openImgZoom(\'' + img.url + '\',event)" title="Veure mes gran">&#128269;</button>' +
+      '</div>' +
+      '<div class="bo-meta"><div class="bo-src">&#128193; Carregada</div><div class="bo-caption">' + cap + '</div></div>' +
+      '<div class="bo-act">' +
+      '<button class="bo-use" onclick="event.stopPropagation();useLibImage(' + idx + ')">Usar</button>' +
+      '<button onclick="event.stopPropagation();deleteUploadImage(' + idx + ')" style="color:var(--red)" title="Eliminar">&#128465;</button>' +
+      '</div></div>';
   }).join('');
 }
 
