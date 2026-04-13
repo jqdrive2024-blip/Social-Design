@@ -1723,6 +1723,30 @@ function applyPendingToProposal(propId) {
 }
 
 // Generar imatge des de la librería
+// Puja una imatge base64 al servidor i retorna la URL publica
+async function uploadToServer(base64Data) {
+  const res = await fetch(PUBLISHER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: CRON_SECRET, action: 'upload_image', imageData: base64Data })
+  });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  if (!data.success || !data.url) throw new Error(data.error || 'Error pujant al servidor');
+  return data.url;
+}
+
+// Desa les imatges de la biblioteca (generades + carregades) a Firestore
+async function saveLibImagesToFirestore() {
+  if (!currentUser || !currentRestId) return;
+  const toSave = libImages
+    .filter(function(i) { return (i.source === 'generated' || i.source === 'upload') && i.restId === currentRestId && i.url && i.url.startsWith('http'); })
+    .map(function(i) { return { url: i.url, source: i.source, caption: i.caption || '', prompt: i.prompt || '', type: i.type || 'post', modelLabel: i.modelLabel || '' }; });
+  try {
+    await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(currentRestId).update({ libImages: toSave });
+  } catch(e) { console.warn('saveLibImagesToFirestore error:', e); }
+}
+
 async function genLibraryImage() {
   const prompt = document.getElementById('genImgPrompt').value.trim();
   if (!prompt) { toast("Descriu la imatge que vols generar"); return; }
@@ -1734,18 +1758,27 @@ async function genLibraryImage() {
   btn.textContent = geminiKey ? '⏳ Generant amb Gemini...' : '⏳ Generant amb Puter...';
   try {
     const result2 = await generateImageNb(prompt, isStory);
-    const url = result2?.url || result2;
-    const modelLabel = result2?.label || '🤖 IA';
-    const imgData = { url, source: 'generated', prompt, type: isStory ? 'story' : 'post', restId: currentRestId, modelLabel };
+    let url = result2 && result2.url ? result2.url : result2;
+    const modelLabel = result2 && result2.label ? result2.label : '🤖 IA';
+
+    // Si la imatge es base64, pujar-la al servidor per obtenir URL publica
+    if (url && url.startsWith('data:')) {
+      btn.textContent = '⏳ Pujant al servidor...';
+      try {
+        url = await uploadToServer(url);
+      } catch(uploadErr) {
+        console.warn('Upload to server failed, keeping base64:', uploadErr);
+      }
+    }
+
+    const imgData = { url: url, source: 'generated', prompt: prompt, type: isStory ? 'story' : 'post', restId: currentRestId, modelLabel: modelLabel };
     addToLibrary(imgData);
-    // Guardar en IndexedDB para persistencia
+    // Guardar a Firestore per sincronitzar entre dispositius
+    await saveLibImagesToFirestore();
+    // Tambe a IndexedDB com a cache local
     await idbSaveImage(imgData);
-    // Actualitzar idbId de l'últim item
-    const savedItems = await idbLoadImages(currentRestId);
-    const last = savedItems[savedItems.length - 1];
-    if (last) { const li = libImages.find(i => i.url === url); if (li) li.idbId = last.id; }
     renderGenGrid();
-    toast('✓ Imatge generada i guardada a la librería!');
+    toast('✓ Imatge generada i sincronitzada a tots els dispositius!');
   } catch(e) {
     toast('❌ Error: ' + (e.message || 'Error generant').slice(0,80));
   } finally {
@@ -2226,12 +2259,16 @@ async function loadRestaurant(id) {
   // Actualitzar info librería
   const li = document.getElementById('libRestInfo');
   if (li) li.textContent = 'Imatges de ' + (d.name||'el restaurant actiu');
-  scheduled = (d.scheduled||[]).map(s=>({...s}));
+  scheduled = (d.scheduled||[]).map(function(s){ return Object.assign({},s); });
   updBadge(); renderCal();
-  // Restaurar imatges dels posts programats des d'IndexedDB
-  restoreSchedImages();
-  // Carregar imatges generades guardades (IndexedDB)
-  libImages = libImages.filter(i => i.source !== 'generated' && i.source !== 'upload');
+  // Carregar imatges de biblioteca guardades al servidor (generades + carregades)
+  libImages = libImages.filter(function(i){ return i.source !== 'generated' && i.source !== 'upload'; });
+  if (d.libImages && d.libImages.length) {
+    d.libImages.forEach(function(img) {
+      addToLibrary(Object.assign({}, img, { restId: id }));
+    });
+  }
+  // Tambe des d'IndexedDB com a cache local (per imatges antigues)
   loadPersistedImages(id);
 }
 
@@ -2389,23 +2426,29 @@ async function saveScheduled() {
   if (!currentUser||!currentRestId) return;
   setSyncState('spin','Guardando...');
   try {
-    // Guardar imatges a IDB (no a Firestore: límit 1MB doc)
-    const itemsToSave = await Promise.all(scheduled.map(async (s, i) => {
-      const item = {...s};
-      if (item.imageData && !item.imageData.startsWith('blob:')) {
-        // Guardar a IDB si no té ja un ID
-        if (!item.schedImgId) {
-          const idbId = await idbSaveSchedImage(item.imageData, currentRestId);
-          if (idbId) { item.schedImgId = idbId; scheduled[i].schedImgId = idbId; }
+    const itemsToSave = await Promise.all(scheduled.map(async function(s, i) {
+      const item = Object.assign({}, s);
+      // Si la imatge és base64, pujar al servidor per obtenir URL publica i sincronitzar-la
+      if (item.imageData && item.imageData.startsWith('data:')) {
+        try {
+          const serverUrl = await uploadToServer(item.imageData);
+          item.imageData = serverUrl;
+          scheduled[i].imageData = serverUrl; // actualitzar en memoria tambe
+        } catch(uploadErr) {
+          console.warn('Could not upload image to server:', uploadErr);
         }
       }
-      // Treure imageData de Firestore
-      const {imageData, ...noImg} = item;
-      return noImg;
+      // Guardar la URL (HTTP) a Firestore perque altres dispositius la vegin
+      const itemToStore = Object.assign({}, item);
+      // Si es URL publica, la guardem; si es base64 (fallback), no la guardem (molt gran)
+      if (itemToStore.imageData && !itemToStore.imageData.startsWith('http')) {
+        delete itemToStore.imageData;
+      }
+      return itemToStore;
     }));
     await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(currentRestId)
       .update({scheduled: itemsToSave});
-    setSyncState('ok','Guardado ✓');
+    setSyncState('ok','Guardat ✓');
   } catch(e) {
     console.error('saveScheduled error:', e);
     setSyncState('ok','Error guardant');
@@ -2874,27 +2917,35 @@ function handleUploadInput(e) {
   processUploadFiles(files);
 }
 
-function processUploadFiles(files) {
+async function processUploadFiles(files) {
   if (!files.length) return;
   const prog = document.getElementById('uploadProgress');
   prog.style.display = 'block';
   prog.textContent = 'Processant ' + files.length + ' imatge(s)...';
   let done = 0;
-  files.forEach(file => {
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = { url: ev.target.result, source: 'upload', caption: file.name.replace(/\.[^.]+$/, ''), type: 'post', restId: currentRestId };
-      addToLibrary(img);
-      idbSaveImage(img);
-      done++;
-      if (done === files.length) {
-        prog.style.display = 'none';
-        renderUploadGrid();
-        toast('✓ ' + done + ' imatge(s) afegides a la biblioteca');
-      }
-    };
-    reader.readAsDataURL(file);
-  });
+  for (const file of files) {
+    prog.textContent = 'Pujant ' + (done + 1) + ' de ' + files.length + '...';
+    const base64 = await new Promise(function(resolve) {
+      const reader = new FileReader();
+      reader.onload = function(ev) { resolve(ev.target.result); };
+      reader.readAsDataURL(file);
+    });
+    let finalUrl = base64;
+    try {
+      finalUrl = await uploadToServer(base64);
+    } catch(e) {
+      console.warn('Upload to server failed, keeping base64:', e);
+    }
+    const caption = file.name.replace(/\.[^.]+$/, '');
+    const img = { url: finalUrl, source: 'upload', caption: caption, type: 'post', restId: currentRestId };
+    addToLibrary(img);
+    idbSaveImage(img);
+    done++;
+  }
+  await saveLibImagesToFirestore();
+  prog.style.display = 'none';
+  renderUploadGrid();
+  toast('✓ ' + done + ' imatge(s) afegides i sincronitzades!');
 }
 
 function renderUploadGrid() {
