@@ -2051,35 +2051,44 @@ function renderCal() {
 }
 function renderSList() {
   const c=document.getElementById('schedItems');
-  if (!scheduled.length){c.innerHTML=`<div class="empty"><span class="ei">📅</span><p>Sense publicacions encara.</p></div>`;return;}
+  if (!scheduled.length){c.innerHTML='<div class="empty"><span class="ei">&#128197;</span><p>Sense publicacions encara.</p></div>';return;}
   const sorted=[...scheduled].map((s,origIdx)=>({...s,_origIdx:origIdx})).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const now = new Date();
   let html = '';
   for (const s of sorted) {
     const i = s._origIdx;
+    // Determinar si el moment programat ja ha passat (el cron potser ja ho ha publicat)
+    const schedDt = s.date && s.time ? new Date(s.date + 'T' + s.time) : null;
+    const isPast = schedDt && schedDt < now;
     const thumb = s.imageData
       ? '<img src="' + s.imageData + '" class="sthumb" alt="">'
-      : '<span style="font-size:22px">' + (s.emoji||'📸') + '</span>';
+      : '<span style="font-size:22px">' + (s.emoji||'&#128247;') + '</span>';
     let statusBtn = '';
     if (s.igStatus === 'published') {
-      statusBtn = '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(126,201,142,.15);color:var(--green)">✓ Publicat</span>';
+      statusBtn = '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(126,201,142,.15);color:var(--green)">&#10003; Publicat</span>';
+    } else if (isPast) {
+      // Post passat: pot haver estat publicat pel cron sense que l'app ho sabi
+      statusBtn = '<button data-idx="' + i + '" onclick="markAsPublishedByCron(+this.dataset.idx)" style="background:none;border:1px solid rgba(126,201,142,.35);color:var(--green);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit" title="El cron potser ja ho ha publicat. Clica per confirmar-ho i moure a Favorits.">&#10003; Ja publicat</button>'
+        + (igIsConnected() ? '<button data-idx="' + i + '" onclick="igPublishPost(+this.dataset.idx)" style="background:none;border:1px solid rgba(126,179,232,.35);color:var(--blue);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit">&#128241; Publicar</button>' : '');
     } else if (igIsConnected()) {
-      statusBtn = '<button id="igpubBtn-' + i + '" onclick="igPublishPost(' + i + ')" style="background:none;border:1px solid rgba(126,179,232,.35);color:var(--blue);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit">📱 Publicar</button>';
+      statusBtn = '<button data-idx="' + i + '" onclick="igPublishPost(+this.dataset.idx)" style="background:none;border:1px solid rgba(126,179,232,.35);color:var(--blue);cursor:pointer;border-radius:20px;font-size:10px;padding:2px 10px;font-family:inherit">&#128241; Publicar</button>';
     } else {
       statusBtn = '<span style="font-size:10px;color:var(--text3)">IG no connectat</span>';
     }
-    html += '<div class="sitem ' + (s.type==='story'?'story':'') + '">'
+    const pastStyle = isPast && s.igStatus !== 'published' ? 'opacity:.75;' : '';
+    html += '<div class="sitem ' + (s.type==='story'?'story':'') + '" style="' + pastStyle + '">'
       + '<div style="display:flex;align-items:center;gap:8px">'
       + thumb
       + '<div style="flex:1;min-width:0;overflow:hidden">'
-      + '<div class="sd8">' + fmtDate(s.date) + ' · ' + s.time + '</div>'
+      + '<div class="sd8">' + fmtDate(s.date) + ' &#183; ' + s.time + (isPast && s.igStatus !== 'published' ? ' <span style="color:var(--green);font-size:10px">&#183; hora passada</span>' : '') + '</div>'
       + '<div class="stit" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + s.title + '</div>'
       + '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px">'
       + '<span class="styp">' + (s.type==='post'?'Post':'Story') + '</span>'
       + statusBtn
       + '</div></div>'
       + '<div style="display:flex;gap:2px;flex-shrink:0">'
-      + '<button onclick="openEditSched(' + i + ')" title="Editar" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:13px;padding:5px 8px;border-radius:var(--rs);line-height:1">✏️</button>'
-      + '<button onclick="remSched(' + i + ')" title="Eliminar" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px 6px;line-height:1">×</button>'
+      + '<button data-idx="' + i + '" onclick="openEditSched(+this.dataset.idx)" title="Editar" style="background:var(--surface3);border:1px solid var(--border2);color:var(--text2);cursor:pointer;font-size:13px;padding:5px 8px;border-radius:var(--rs);line-height:1">&#9999;&#65039;</button>'
+      + '<button data-idx="' + i + '" onclick="remSched(+this.dataset.idx)" title="Eliminar" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:18px;padding:4px 6px;line-height:1">&#215;</button>'
       + '</div>'
       + '</div></div>';
   }
@@ -2133,13 +2142,30 @@ async function saveEditSched() {
 
 async function remSched(i){
   const s = scheduled[i];
-  // Eliminar imatge de IDB si existeix
-  if (s?.schedImgId) await idbDeleteSchedImage(s.schedImgId);
+  // No esborrem la imatge del servidor (URL publica), nomes la referencia IDB local
+  if (s && s.schedImgId) await idbDeleteSchedImage(s.schedImgId);
   scheduled.splice(i,1);
   updBadge();
   await saveScheduled();
   renderCal();
-  toast('Eliminada');
+  toast('Eliminada del calendari');
+}
+
+// El cron ha publicat el post automaticament. L'usuari confirma: mou a Favorits i elimina del calendari.
+async function markAsPublishedByCron(i) {
+  const s = scheduled[i];
+  if (!s) return;
+  const publishedPost = Object.assign({}, s, {
+    igStatus: 'published',
+    publishedAt: new Date().toISOString(),
+    source: 'published'
+  });
+  await saveFavorite(publishedPost);
+  scheduled.splice(i, 1);
+  updBadge();
+  await saveScheduled();
+  renderCal();
+  toast('Mogut a Favorits. Calendari actualitzat.');
 }
 function chMonth(d){calMon+=d;if(calMon>11){calMon=0;calYr++;}if(calMon<0){calMon=11;calYr--;}renderCal();}
 function updBadge(){
@@ -2927,16 +2953,12 @@ async function igPublishPost(schedIdx) {
       publishedAt: new Date().toISOString()
     });
     await saveFavorite(publishedPost);
-    // Eliminar del calendari (pero NO la imatge del servidor)
-    if (scheduled[schedIdx] && scheduled[schedIdx].schedImgId) {
-      // No esborrem la imatge: nomes la referencia local IDB
-      // La URL del servidor es manté intacta
-    }
+    // Eliminar del calendari. La imatge al servidor NO s'esborra (URL publica es manté).
     scheduled.splice(schedIdx, 1);
     updBadge();
     await saveScheduled();
     renderCal();
-    toast('Publicat a Instagram i mogut a Favorits!');
+    toast('Publicat a Instagram! Mogut a Favorits.');
   } catch(e) {
     toast('❌ Error publicant: ' + e.message.slice(0,80));
     if (btn) { btn.disabled = false; btn.textContent = '📱 Publicar'; }
