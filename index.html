@@ -665,16 +665,7 @@ select option{background:var(--surface2)}
             <div class="fg"><label>Hashtags fixos</label><textarea rows="2" id="cfgTags"></textarea></div>
             <div class="fg"><label>CTA habitual</label><input type="text" id="cfgCTA"></div>
             <div class="hdiv" style="margin:4px 0"></div>
-            <div class="fg">
-              <label>Google Gemini API Key</label>
-              <input type="password" id="cfgGeminiKey" placeholder="AIza..." autocomplete="off">
-              <span style="font-size:11px;color:var(--text3);margin-top:3px">Per generar imatges · Gratuïta a <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent)">aistudio.google.com</a></span>
-            </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
-              <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
-              <button onclick="deleteCurrentRest()" style="background:none;border:1px solid var(--red);color:var(--red);padding:10px 18px;border-radius:var(--rs);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s" onmouseover="this.style.background='rgba(232,126,126,.1)'" onmouseout="this.style.background='none'">🗑 Eliminar aquest client</button>
-            </div>
-          </div>
+            
         </div>
 
         <!-- Generació d'imatges amb IA -->
@@ -688,6 +679,7 @@ select option{background:var(--surface2)}
                 <label>Model de generació</label>
                 <select id="cfgImgModel" onchange="saveImgModel()">
                   <option value="gemini">✨ Gemini Imagen (recomanat)</option>
+                  <option value="gpt-image-2">🤖 GPT Image 2 (gratuït via Puter)</option>
                   <option value="cloudflare">☁️ Cloudflare SDXL (alta qualitat)</option>
                   <option value="puter">⚡ Puter FLUX (gratuït)</option>
                 </select>
@@ -718,11 +710,12 @@ select option{background:var(--surface2)}
             <!-- Puter status -->
             <div style="display:flex;flex-direction:column;gap:10px">
               <div style="padding:14px;background:var(--surface2);border-radius:var(--r);border:1px solid var(--border)">
-                <div style="font-size:12px;font-weight:500;margin-bottom:6px">Compte Puter (FLUX)</div>
-                <div id="puterStatus" style="font-size:11px;color:var(--text3);margin-bottom:8px">○ Estat desconegut</div>
+                <div style="font-size:12px;font-weight:500;margin-bottom:6px">Compte Puter (FLUX + GPT Image 2)</div>
+                <div id="puterStatus" style="font-size:11px;color:var(--text3);margin-bottom:8px">⏳ Comprovant...</div>
+                <div id="puterUserInfo" style="font-size:11px;color:var(--accent);margin-bottom:8px;display:none"></div>
                 <div style="display:flex;gap:6px">
-                  <button id="puterLoginBtn" onclick="puterLogin()" class="bp" style="font-size:11px;padding:6px 12px">Iniciar sessió</button>
-                  <button id="puterLogoutBtn" onclick="puterLogout()" class="bs" style="font-size:11px;padding:6px 12px;display:none">Desconnectar</button>
+                  <button id="puterLoginBtn" onclick="puterLogin()" class="bp" style="font-size:11px;padding:6px 12px;display:none">Iniciar sessio</button>
+                  <button id="puterLogoutBtn" onclick="puterLogout()" class="bs" style="font-size:11px;padding:6px 12px;display:none">Desconnectar Puter</button>
                 </div>
               </div>
             </div>
@@ -908,7 +901,8 @@ select option{background:var(--surface2)}
     <div class="fg" style="margin-bottom:14px"><label>Programar</label><div class="dtp"><input type="date" id="mpDate"><input type="time" id="mpTime" value="12:00"></div></div>
     <div class="mact">
       <button class="bs" onclick="closeOv('ovPrev')">Cancelar</button>
-      <button class="bp" onclick="confirmSched()">✓ Confirmar programación</button>
+      <button class="bs" onclick="saveProposalChanges()" style="border-color:var(--accent);color:var(--accent)">&#128190; Guardar canvis</button>
+      <button class="bp" onclick="confirmSched()">✓ Programar</button>
     </div>
   </div>
 </div>
@@ -961,6 +955,30 @@ select option{background:var(--surface2)}
     <div class="mact">
       <button class="bs" onclick="closeOv('ovEditSched')">Cancelar</button>
       <button class="bp" onclick="saveEditSched()">✓ Guardar canvis</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar favorit -->
+<div class="ov" id="ovEditFav" onclick="closeOvIf(event,'ovEditFav')">
+  <div class="modal">
+    <h3>&#9999; Editar favorit</h3>
+    <p class="msub" id="efSub">Edita el text i guarda els canvis</p>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Títol</label>
+      <input type="text" id="efTitle" style="width:100%">
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Text de la publicació</label>
+      <textarea rows="5" id="efCaption"></textarea>
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <label>Hashtags</label>
+      <input type="text" id="efHashtags" style="width:100%" placeholder="#hashtag1 #hashtag2">
+    </div>
+    <div class="mact">
+      <button class="bs" onclick="closeOv('ovEditFav')">Cancelar</button>
+      <button class="bp" onclick="confirmEditFav()">&#128190; Guardar canvis</button>
     </div>
   </div>
 </div>
@@ -1034,14 +1052,15 @@ let igAccountName = localStorage.getItem('sc_ig_account_name') || '';
 // GENERACIÓ D'IMATGES — Gemini Imagen 3 + Puter fallback
 // =====================================================
 function getGeminiKey() {
-  return localStorage.getItem('sc_gemini_key') || document.getElementById('cfgGeminiKey')?.value?.trim() || '';
+  return localStorage.getItem('sc_gemini_key') || '';
 }
 
 // ── Model selector ───────────────────────────────────────────────────────────
 const MODEL_INFO = {
-  gemini:     '✨ Models Nano Banana i Imagen 4 · Requereix API Key gratuïta de Google · Imatges en base64',
-  cloudflare: '☁️ Alta qualitat (SDXL) · 10.000 passes/dia gratis · Requereix compte Cloudflare',
-  puter:      '⚡ Gratuït sense configuració · Qualitat bàsica (FLUX.1-schnell) · Requereix sessió Puter',
+  gemini:        '✨ Models Nano Banana i Imagen 4 · Requereix API Key gratuita de Google · Imatges en base64',
+  'gpt-image-2': '🤖 GPT Image 2 (OpenAI) via Puter · Alta qualitat · 100% gratuit · Requereix sessio Puter',
+  cloudflare:    '☁️ Alta qualitat (SDXL) · 10.000 passes/dia gratis · Requereix compte Cloudflare',
+  puter:         '⚡ Gratuit sense configuracio · Qualitat basica (FLUX.1-schnell) · Requereix sessio Puter',
 };
 
 function getImgModel() { return localStorage.getItem('sc_img_model') || 'gemini'; }
@@ -1066,6 +1085,7 @@ function loadImgModelUI() {
   const el = document.getElementById('cfgImgModel');
   if (el) el.value = model;
   updateModelUI(model);
+  if (typeof puter !== 'undefined') checkPuterStatus();
   
   // Load Cloudflare credentials
   const accId = localStorage.getItem('sc_cf_account_id') || '';
@@ -1117,8 +1137,6 @@ function saveGeminiCfgImg() {
   localStorage.setItem('sc_gemini_key', key);
   if (workerUrl) localStorage.setItem('sc_gemini_worker_url', workerUrl);
   if (model) localStorage.setItem('sc_gemini_model', model);
-  const cfgEl = document.getElementById('cfgGeminiKey');
-  if (cfgEl) cfgEl.value = key;
   toast('✓ Gemini desat' + (workerUrl ? ' (amb Worker URL)' : '') + (model ? ' · Model: ' + model.split('/').pop() : ''));
 }
 
@@ -1137,8 +1155,6 @@ async function testGeminiConnection() {
   
   if (keyInput) {
     localStorage.setItem('sc_gemini_key', keyInput);
-    const cfgEl = document.getElementById('cfgGeminiKey');
-    if (cfgEl) cfgEl.value = keyInput;
   }
   if (workerInput) localStorage.setItem('sc_gemini_worker_url', workerInput);
   if (modelInput) localStorage.setItem('sc_gemini_model', modelInput);
@@ -1244,33 +1260,58 @@ function loadImgThemeUI() {
 }
 
 // ── Puter login ──────────────────────────────────────────────────────────────
+function setPuterUI(loggedIn, username) {
+  var statusEl  = document.getElementById('puterStatus');
+  var userEl    = document.getElementById('puterUserInfo');
+  var loginBtn  = document.getElementById('puterLoginBtn');
+  var logoutBtn = document.getElementById('puterLogoutBtn');
+  if (!statusEl) return;
+  if (loggedIn) {
+    statusEl.textContent = '● Connectat';
+    statusEl.style.color = 'var(--green)';
+    if (userEl) { userEl.textContent = username ? '@' + username : 'Sessio activa'; userEl.style.display = 'block'; }
+    if (loginBtn)  { loginBtn.style.display = 'none'; loginBtn.disabled = false; loginBtn.textContent = 'Iniciar sessio'; }
+    if (logoutBtn) { logoutBtn.style.display = 'inline-flex'; logoutBtn.disabled = false; logoutBtn.textContent = 'Desconnectar Puter'; }
+  } else {
+    statusEl.textContent = '○ No connectat';
+    statusEl.style.color = 'var(--text3)';
+    if (userEl)    { userEl.style.display = 'none'; }
+    if (loginBtn)  { loginBtn.style.display = 'inline-flex'; loginBtn.disabled = false; loginBtn.textContent = 'Iniciar sessio'; }
+    if (logoutBtn) { logoutBtn.style.display = 'none'; logoutBtn.disabled = false; }
+  }
+}
+async function checkPuterStatus() {
+  var statusEl = document.getElementById('puterStatus');
+  if (!statusEl) return;
+  if (typeof puter === 'undefined' || !puter.auth) { statusEl.textContent = '○ Puter no disponible'; return; }
+  try {
+    var loggedIn = puter.auth.isLoggedIn();
+    if (loggedIn) {
+      var user = await puter.auth.getUser().catch(function() { return null; });
+      setPuterUI(true, user && user.username);
+    } else { setPuterUI(false); }
+  } catch(e) { setTimeout(checkPuterStatus, 1000); }
+}
 async function puterLogin() {
+  var loginBtn = document.getElementById('puterLoginBtn');
+  if (loginBtn) { loginBtn.disabled = true; loginBtn.textContent = 'Obrint sessio...'; }
   try {
     await puter.auth.signIn();
-    updatePuterStatus();
-    toast('✓ Connectat a Puter!');
-  } catch(e) { toast('Error Puter: ' + e.message); }
+    await checkPuterStatus();
+    toast('Connectat a Puter! Ja pots generar imatges.');
+  } catch(e) {
+    toast('No s\'ha pogut connectar: ' + (e.message || 'tanca el popup i torna a provar'));
+  } finally {
+    var lb = document.getElementById('puterLoginBtn');
+    if (lb && lb.style.display !== 'none') { lb.disabled = false; lb.textContent = 'Iniciar sessio'; }
+  }
 }
 async function puterLogout() {
-  try { await puter.auth.signOut(); updatePuterStatus(); toast('Desconnectat de Puter'); } catch(e) {}
-}
-async function updatePuterStatus() {
-  try {
-    const ok = await puter.auth.isSignedIn();
-    const el = document.getElementById('puterStatus');
-    const lb = document.getElementById('puterLoginBtn');
-    const lo = document.getElementById('puterLogoutBtn');
-    if (ok) {
-      const u = await puter.auth.getUser();
-      if (el) el.innerHTML = '<span style="color:var(--green)">● ' + (u?.username||'usuari') + '</span>';
-      if (lb) lb.style.display = 'none';
-      if (lo) lo.style.display = 'inline-flex';
-    } else {
-      if (el) el.textContent = '○ No connectat';
-      if (lb) lb.style.display = 'inline-flex';
-      if (lo) lo.style.display = 'none';
-    }
-  } catch(e) {}
+  var logoutBtn = document.getElementById('puterLogoutBtn');
+  if (!confirm('Desconnectar el compte Puter?')) return;
+  if (logoutBtn) { logoutBtn.disabled = true; logoutBtn.textContent = 'Desconnectant...'; }
+  try { await puter.auth.signOut(); toast('Puter desconnectat.'); } catch(e) {}
+  finally { await checkPuterStatus(); }
 }
 
 // ── Prompt engineering — basat en temàtica configurable ──────────────────────
@@ -1340,6 +1381,10 @@ async function generateImageNb(prompt, isStory) {
   }
 
   // ── Gemini ───────────────────────────────────────────────────────────────
+  if (model === 'gpt-image-2') {
+    try { return await generateWithGptImage2(prompt, isStory); }
+    catch(e) { toast('⚠️ GPT Image 2: ' + e.message.slice(0,80) + ' · Provant FLUX...'); return await generateWithPuter(prompt, isStory); }
+  }
   if (model === 'gemini') {
     const geminiKey = getGeminiKey();
     if (geminiKey) {
@@ -1356,6 +1401,20 @@ async function generateImageNb(prompt, isStory) {
 
   // ── Puter FLUX (model === 'puter' o fallback) ─────────────────────────────
   return await generateWithPuter(prompt, isStory);
+}
+
+async function generateWithGptImage2(prompt, isStory) {
+  const fullPrompt = buildImagePrompt(prompt, isStory);
+  const size = isStory ? '1024x1536' : '1024x1024';
+  try {
+    const imgEl = await puter.ai.txt2img(fullPrompt, { model: 'gpt-image-2', quality: 'medium', size });
+    if (imgEl?.src) return { url: imgEl.src, label: '🤖 GPT Image 2' };
+    throw new Error('Sense src');
+  } catch(e) {
+    if (/credit|quota|limit|session|login/i.test(e.message || ''))
+      throw new Error('Puter sense sessio. Inicia sessio a puter.com i torna a provar.');
+    throw new Error('Error GPT Image 2: ' + (e.message || 'desconegut'));
+  }
 }
 
 async function generateWithPuter(prompt, isStory) {
@@ -2200,7 +2259,6 @@ async function initApp() {
         document.getElementById('mainApp').style.display = 'grid';
         renderCal();
         const geminiKey = localStorage.getItem('sc_gemini_key');
-        if (geminiKey && document.getElementById('cfgGeminiKey')) document.getElementById('cfgGeminiKey').value = geminiKey;
         const savedIgToken = localStorage.getItem('sc_ig_token');
         if (savedIgToken && document.getElementById('cfgIgToken')) document.getElementById('cfgIgToken').value = savedIgToken;
         updateIgConnectUI();
@@ -2396,8 +2454,6 @@ async function addRest() {
 
 async function saveCfg() {
   if (!currentUser||!currentRestId) return;
-  const geminiKey = document.getElementById('cfgGeminiKey')?.value?.trim();
-  if (geminiKey) localStorage.setItem('sc_gemini_key', geminiKey);
   const data = {
     name:document.getElementById('cfgName').value,
     cuisine:document.getElementById('cfgCuisine').value,
@@ -3130,10 +3186,54 @@ function renderFavorites() {
       '</div>' +
       '<div class="cact">' +
       '<button class="bsel" data-fid="' + f.id + '" onclick="reuseFromFavorite(this.dataset.fid)">Reutilitzar</button>' +
+      '<button class="bs" data-fid="' + f.id + '" onclick="openEditFav(this.dataset.fid)" style="flex:0;padding:7px 10px">&#9999;</button>' +
       '<button class="bs" data-fid="' + f.id + '" onclick="deleteFavorite(this.dataset.fid)" style="flex:0;padding:7px 10px;color:var(--red);border-color:rgba(232,126,126,.3)">&#128465;</button>' +
       '</div>' +
       '</div>';
   }).join('');
+}
+
+function saveProposalChanges() {
+  if (!editP) return;
+  var newCap = document.getElementById('mpCap').value;
+  editP.caption = newCap;
+  var cardCap = document.querySelector('#card-' + editP.id + ' .ccap');
+  if (cardCap) cardCap.textContent = newCap;
+  var igcatxt = document.querySelector('#mpPrev .igcatxt');
+  if (igcatxt) igcatxt.textContent = newCap;
+  closeOv('ovPrev');
+  toast('&#128190; Canvis guardats a la proposta!');
+}
+
+var _editFavId = null;
+function openEditFav(favId) {
+  var f = favorites.find(function(x) { return x.id === favId; });
+  if (!f) return;
+  _editFavId = favId;
+  document.getElementById('efSub').textContent = f.title || 'Edita el text i guarda els canvis';
+  document.getElementById('efTitle').value    = f.title    || '';
+  document.getElementById('efCaption').value  = f.caption  || '';
+  document.getElementById('efHashtags').value = f.hashtags || '';
+  document.getElementById('ovEditFav').classList.add('open');
+}
+async function confirmEditFav() {
+  if (!_editFavId) return;
+  var f = favorites.find(function(x) { return x.id === _editFavId; });
+  if (!f) return;
+  f.title    = document.getElementById('efTitle').value.trim();
+  f.caption  = document.getElementById('efCaption').value.trim();
+  f.hashtags = document.getElementById('efHashtags').value.trim();
+  closeOv('ovEditFav');
+  renderFavorites();
+  if (currentRestId && typeof db !== 'undefined' && currentUser) {
+    try {
+      await db.collection('users').doc(currentUser.uid)
+        .collection('restaurants').doc(currentRestId)
+        .update({ favorites: favorites });
+      toast('&#128190; Favorit actualitzat!');
+    } catch(e) { toast('Canvis desats localment.'); }
+  } else { toast('&#128190; Favorit actualitzat!'); }
+  _editFavId = null;
 }
 
 function reuseFromFavorite(favId) {
