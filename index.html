@@ -428,6 +428,22 @@ select option{background:var(--surface2)}
         <span class="lbl">🤖 Textos: GPT-4o-mini · Imatges: Gemini/Imagen</span>
         <span class="kst on" id="nbSt">Actiu</span>
       </div>
+      <!-- CERCA DE PUBLICACIONS D'INSTAGRAM -->
+      <div class="ig-search-box" id="igSearchBox">
+        <h3 onclick="toggleIgSection()" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between">
+          <span>&#128269; Inspiració d'Instagram</span>
+          <span id="igToggleArrow" style="font-size:12px;color:var(--text3);transition:transform .25s">▼</span>
+        </h3>
+        <div id="igSearchBody">
+          <p style="margin-top:8px">Cerca publicacions per temàtica per inspirar-te. Clica "Analitzar" per omplir automàticament el context.</p>
+          <div class="ig-search-row">
+            <input type="text" id="igSearchQuery" placeholder="Ex: bravas, paella, hamburguesa, sushi..." onkeydown="if(event.key==='Enter')searchIgPosts()">
+            <button class="bp" onclick="searchIgPosts()" id="igSearchBtn" style="padding:10px 18px">🔍 Cercar</button>
+          </div>
+          <div id="igSearchResults" class="ig-results-grid" style="display:none"></div>
+        </div>
+      </div>
+
       <div class="gform">
         <h3>Nova generació de contingut</h3>
         <div class="fgrid">
@@ -665,7 +681,14 @@ select option{background:var(--surface2)}
             <div class="fg"><label>Hashtags fixos</label><textarea rows="2" id="cfgTags"></textarea></div>
             <div class="fg"><label>CTA habitual</label><input type="text" id="cfgCTA"></div>
             <div class="hdiv" style="margin:4px 0"></div>
-            
+            <div class="fg">
+              <label>Serper.dev API Key <span style="font-weight:400;color:var(--green);font-size:11px">(recomanat)</span></label>
+              <input type="password" id="cfgSerperKey" placeholder="clau..." autocomplete="off">
+              <span style="font-size:11px;color:var(--text3);margin-top:3px">Per cercar inspiració a Instagram · <a href="https://serper.dev" target="_blank" style="color:var(--accent)">serper.dev</a> · 2500 cerques gratuïtes/mes · Registre en 1 minut</span>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px">
+              <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
+            </div>
         </div>
 
         <!-- Generació d'imatges amb IA -->
@@ -1028,6 +1051,7 @@ const firebaseConfig = {
 };
 
 const SCRAPER_URL = 'https://jordiqterrassa.com/scraper.php';
+const LIKES_URL   = 'https://jordiqterrassa.com/likes.php';
 const PUBLISHER_URL = 'https://jordiqterrassa.com/publisher.php';
 const GEMINI_PROXY_URL = 'https://jordiqterrassa.com/gemini-proxy.php';
 const CRON_SECRET = 'social_design_2025_secret'; // Canvia-ho i posa el mateix al publisher.php
@@ -2454,6 +2478,8 @@ async function addRest() {
 
 async function saveCfg() {
   if (!currentUser||!currentRestId) return;
+  const serperKey2 = document.getElementById('cfgSerperKey')?.value?.trim();
+  if (serperKey2 !== undefined) localStorage.setItem('sc_serper_key', serperKey2);
   const data = {
     name:document.getElementById('cfgName').value,
     cuisine:document.getElementById('cfgCuisine').value,
@@ -3333,6 +3359,657 @@ function changeRestDrawer() {
 }
 
 // Mobile sync is handled inline in the original functions below
+
+
+async function searchIgPosts() {
+  var query = (document.getElementById('igSearchQuery').value || '').trim();
+  if (!query) { toast('Entra una temàtica per cercar'); document.getElementById('igSearchQuery').focus(); return; }
+
+  var btn = document.getElementById('igSearchBtn');
+  var resultsDiv = document.getElementById('igSearchResults');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Cercant...';
+  resultsDiv.style.display = 'grid';
+  resultsDiv.innerHTML = '<div class="ig-search-spin"><div class="ispin"></div><span>Cercant publicacions de "' + query + '"...</span></div>';
+
+  try {
+    // ── Mètode 1: Instagram Graph API (compte Business/Creator connectat) ────
+    var tok = localStorage.getItem('sc_ig_token') || igToken || '';
+    var uid = localStorage.getItem('sc_ig_user_id') || igUserId || '';
+    if (tok && uid) {
+      try {
+        var igPosts = await searchIgHashtag(query, tok, uid);
+        if (igPosts && igPosts.length > 0) {
+          renderIgSearchResults(igPosts, query);
+          toast('🔍; ' + igPosts.length + " publicacions d'Instagram trobades per \"" + query + '"');
+          fetchLikesInBackground(igPosts);
+          return;
+        }
+      } catch(igErr) {
+        // 400 = compte personal, 403 = permisos insuficients → fallback silenciós
+        console.warn('IG Graph API no disponible (' + igErr.message + '), usant scraper...');
+      }
+    }
+
+    // ── Mètode 2: Scraper PHP (Picuki + Google + Bing) ───────────────────────
+    var serperKey = localStorage.getItem('sc_serper_key') || '';
+    var searchUrl = SCRAPER_URL + '?action=hashtag&query=' + encodeURIComponent(query);
+    if (serperKey) searchUrl += '&serper_key=' + encodeURIComponent(serperKey);
+    var res = await fetch(searchUrl);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    var data = await res.json();
+
+    if (!data.success || !data.posts || !data.posts.length) {
+      resultsDiv.innerHTML = '<div class="ig-search-empty">&#128247; ' + (data.error || "No s'han trobat publicacions. Prova amb un terme diferent.") + '</div>';
+      return;
+    }
+
+    renderIgSearchResults(data.posts, query);
+    toast('🔍; ' + data.posts.length + ' publicacions trobades per "' + query + '"');
+    fetchLikesInBackground(data.posts);
+
+  } catch(e) {
+    resultsDiv.innerHTML = '<div class="ig-search-empty">&#10060; Error: ' + e.message + '</div>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Cercar';
+  }
+}
+
+// ── Cerca via Instagram Graph API ────────────────────────────────────────────
+async function searchIgHashtag(query, token, userId) {
+  var BASE = 'https://graph.facebook.com/v21.0';
+  var hashtag = query.trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
+
+  var tagRes = await fetch(
+    BASE + '/ig_hashtag_search?user_id=' + encodeURIComponent(userId)
+    + '&q=' + encodeURIComponent(hashtag)
+    + '&access_token=' + encodeURIComponent(token)
+  );
+  if (!tagRes.ok) throw new Error('IG hashtag search error: ' + tagRes.status);
+  var tagData = await tagRes.json();
+  if (tagData.error) throw new Error(tagData.error.message || 'IG API error');
+  var tagId = tagData.data && tagData.data[0] && tagData.data[0].id;
+  if (!tagId) return [];
+
+  var mediaRes = await fetch(
+    BASE + '/' + tagId + '/top_media'
+    + '?user_id=' + encodeURIComponent(userId)
+    + '&fields=id,media_type,media_url,thumbnail_url,permalink,caption,timestamp'
+    + '&limit=24'
+    + '&access_token=' + encodeURIComponent(token)
+  );
+  if (!mediaRes.ok) throw new Error('IG media error: ' + mediaRes.status);
+  var mediaData = await mediaRes.json();
+  if (mediaData.error) throw new Error(mediaData.error.message || 'IG media error');
+  if (!mediaData.data || !mediaData.data.length) return [];
+
+  return mediaData.data.map(function(m) {
+    var imgUrl = (m.media_type === 'VIDEO') ? (m.thumbnail_url || m.media_url || '') : (m.media_url || '');
+    var sc = '';
+    if (m.permalink) { var pm = m.permalink.match(/\/p\/([^/]+)/); if (pm) sc = pm[1]; }
+    return {
+      postUrl: m.permalink || '', imageUrl: imgUrl, username: '',
+      avatar: '', likes: 0, caption: (m.caption || '').slice(0, 200),
+      shortcode: sc, source: 'instagram_api', timestamp: m.timestamp || ''
+    };
+  }).filter(function(p) { return p.imageUrl; });
+}
+
+// ── Likes: no disponibles sense API oficial d'Instagram ──────────────────────
+// Instagram bloqueja fetch cross-origin i des de servidors PHP.
+// Es pot activar amb l'API Graph oficial (compte Business/Creator).
+function applyLikesToCard(sc, likes) {
+  if (!likes || likes <= 0) return;
+  var lStr = likes >= 1000000 ? (likes/1000000).toFixed(1)+'M'
+           : likes >= 1000    ? Math.round(likes/1000)+'K'
+           : String(likes);
+  var card = document.querySelector('.ig-post-card[data-sc="' + sc + '"]');
+  if (!card) return;
+  var badge = card.querySelector('.ig-likes-badge');
+  if (badge) { badge.textContent = '\u2764\uFE0F ' + lStr; return; }
+  var newBadge = document.createElement('span');
+  newBadge.className = 'ig-likes-badge';
+  newBadge.style.cssText = 'color:#e05a5a;font-weight:700;font-size:12px;display:block;margin-bottom:2px';
+  newBadge.textContent = '\u2764\uFE0F ' + lStr;
+  var likesDiv = card.querySelector('.ig-post-likes');
+  if (likesDiv) likesDiv.prepend(newBadge);
+}
+
+async function fetchLikesInBackground(posts) {
+  // Intentar via PHP (funciona si Picuki/Imginn no bloquegen el servidor)
+  var scs = posts
+    .filter(function(p) { return p.shortcode && !p.likes; })
+    .map(function(p) { return p.shortcode; });
+  scs = [...new Set(scs)].slice(0, 8);
+  if (!scs.length) return;
+  try {
+    var res = await fetch(LIKES_URL + '?shortcodes=' + scs.join(','));
+    if (!res.ok) return;
+    var data = await res.json();
+    Object.entries(data).forEach(function(e) { applyLikesToCard(e[0], e[1]); });
+  } catch(e) { /* silenciós */ }
+}
+
+function renderIgSearchResults(posts, query) {
+  var resultsDiv = document.getElementById('igSearchResults');
+  if (!posts.length) {
+    resultsDiv.innerHTML = "<div class=\"ig-search-empty\">No s'han trobat resultats.</div>";
+    return;
+  }
+  resultsDiv.innerHTML = posts.map(function(post, idx) {
+    // Info: likes si disponible, sino caption/title
+    var infoLine = '';
+    var likesHtml = '', captionHtml = '';
+    if (post.likes > 0) {
+      var lStr = post.likes >= 1000000 ? (post.likes/1000000).toFixed(1)+'M'
+               : post.likes >= 1000    ? Math.round(post.likes/1000)+'K'
+               : String(post.likes);
+      likesHtml = '<span style="color:#e05a5a;font-weight:600;font-size:12px">❤️ ' + lStr + ' likes</span>';
+    }
+    if (post.caption) {
+      var cap = post.caption.slice(0,70) + (post.caption.length>70?'…':'');
+      captionHtml = '<span style="color:var(--text3);font-size:11px;font-style:italic">' + cap + '</span>';
+    }
+    if (likesHtml || captionHtml) {
+      infoLine = '<div class="ig-post-likes" style="display:flex;flex-direction:column;gap:2px">' + (likesHtml||'') + (captionHtml||'') + '</div>';
+    }
+    var avatarHtml = post.avatar
+      ? '<div class="ig-post-av"><img src="' + post.avatar + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>'
+      : '<div class="ig-post-av">👤</div>';
+    var usernameHtml = post.username
+      ? '<span class="ig-post-username">@' + post.username + '</span>'
+      : '<span class="ig-post-username" style="color:var(--text3)">Instagram</span>';
+
+    // Boto Obrir: nomes si tenim URL directa al post (conte /p/)
+    var openBtn = (post.postUrl && post.postUrl.includes('/p/'))
+      ? '<a href="' + post.postUrl + '" target="_blank" rel="noopener">🌐 Obrir post</a>'
+      : '<a href="https://www.instagram.com/explore/tags/' + encodeURIComponent(query.replace(/\s+/g,'')) + '/" target="_blank" rel="noopener" style="opacity:.6">🔍 Cercar</a>';
+
+    // Imatge: si tenim shortcode, carregarem la CDN real (mateixa estrategia libreria)
+    // Sino, usar proxy per la thumbnailUrl
+    var imgId = 'ig-img-' + idx;
+    var proxiedThumb = SCRAPER_URL + '?action=proxy&url=' + encodeURIComponent(post.imageUrl);
+
+    // Detecció de font: primer per camp source, si no per URL de la imatge/post
+    var srcLabel, srcColor;
+    var postUrl  = post.postUrl  || '';
+    var imgUrl   = post.imageUrl || '';
+    var srcField = (post.source  || '').toLowerCase();
+
+    var isIgContent = postUrl.includes('instagram.com') || imgUrl.includes('cdninstagram') || imgUrl.includes('scontent') || imgUrl.includes('fbcdn') || srcField === 'instagram_api' || srcField === 'picuki' || srcField === 'picuki_raw' || srcField === 'picnob' || srcField === 'imginn';
+    var isGoogle    = imgUrl.includes('googleusercontent') || imgUrl.includes('gstatic') || srcField === 'google';
+    var isBing      = postUrl.includes('bing.com') || srcField === 'bing';
+    var isDDG       = srcField === 'duckduckgo';
+    var isIgApi     = srcField === 'instagram_api';
+
+    if (isIgApi)        { srcLabel = '✅ IG API';      srcColor = '#e1306c'; }
+    else if (isIgContent) { srcLabel = '📸 Instagram'; srcColor = '#e1306c'; }
+    else if (isGoogle)  { srcLabel = '🔍 Google';      srcColor = 'var(--text3)'; }
+    else if (isBing)    { srcLabel = '🔍 Bing';        srcColor = 'var(--text3)'; }
+    else if (isDDG)     { srcLabel = '🦆 DDG';         srcColor = 'var(--text3)'; }
+    else                { srcLabel = '🌐 Web';          srcColor = 'var(--text3)'; }
+
+    // Extreure shortcode del postUrl si el camp shortcode és buit
+    // Ex: https://www.instagram.com/p/ABC123xyz/ → ABC123xyz
+    var sc = post.shortcode || '';
+    if (!sc && postUrl) {
+      var scm = postUrl.match(/instagram\.com\/p\/([a-zA-Z0-9_-]{5,20})/);
+      if (scm) sc = scm[1];
+    }
+    post.shortcode = sc; // actualitzar per fetchLikesInBackground
+
+    var sourceBadge = '<span style="margin-left:auto;font-size:10px;color:' + srcColor + ';white-space:nowrap">' + srcLabel + '</span>';
+
+    return '<div class="ig-post-card" data-sc="' + sc + '">'
+      + '<img class="ig-post-img" id="' + imgId + '" src="' + proxiedThumb + '" alt="" loading="lazy">'
+      + '<div class="ig-post-meta">'
+      + '<div class="ig-post-user" style="display:flex;align-items:center;width:100%">' + avatarHtml + usernameHtml + sourceBadge + '</div>'
+      + infoLine
+      + '<div class="ig-post-acts">'
+      + openBtn
+      + '<button data-idx="' + idx + '" onclick="analyzeIgPost(this,JSON.parse(decodeURIComponent(this.dataset.post)))" data-post="' + encodeURIComponent(JSON.stringify(post)) + '" title="Analitzar text i aplicar al context">🤖 Analitzar</button>'
+      + '<button class="var-btn" data-idx="' + idx + '" onclick="openIgVariantModal(JSON.parse(decodeURIComponent(this.dataset.post)),document.getElementById(\'ig-img-\'+this.dataset.idx))" data-post="' + encodeURIComponent(JSON.stringify(post)) + '" title="Generar imatge variant amb IA">✨ Variant</button>'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  // Per cada post amb shortcode, carregarem la imatge CDN real (mateixa estrategia que libreria)
+  posts.forEach(function(post, idx) {
+    if (post.shortcode) {
+      fetchPostCdnImage(post.shortcode, idx);
+    }
+  });
+}
+
+// Obte la URL CDN real d'un post via el mateix sistema que la libreria (Imginn/Picnob)
+async function fetchPostCdnImage(shortcode, idx) {
+  var imgEl = document.getElementById('ig-img-' + idx);
+  if (!imgEl) return;
+  try {
+    var res = await fetch(SCRAPER_URL + '?action=post_image&shortcode=' + encodeURIComponent(shortcode));
+    if (!res.ok) return;
+    var data = await res.json();
+    if (data.success && data.imageUrl && imgEl) {
+      imgEl.src = data.imageUrl;
+    }
+  } catch(e) {
+    // Deixem la thumbnailUrl que ja tenim
+  }
+}
+
+// ── Variable global per al post seleccionat al modal de variant ─────────────
+var _igVariantPost = null;
+var _igVariantBasePrompt = '';
+
+async function openIgVariantModal(post, imgEl) {
+  _igVariantPost = post;
+
+  // Previsualitzar imatge
+  var prev = document.getElementById('igVarPreview');
+  if (prev && imgEl && imgEl.src && !imgEl.src.includes('undefined')) {
+    prev.src = imgEl.src; prev.style.display = 'block';
+  } else if (prev) { prev.style.display = 'none'; }
+
+  // Info
+  var sub = post.username ? 'Inspirat en @' + post.username : 'Genera una imatge similar per al teu restaurant';
+  document.getElementById('ovIgVariantSub').textContent = sub;
+
+  // Reset estat
+  document.getElementById('igVarProgress').classList.remove('act');
+  document.getElementById('igVarCustomPrompt').value = '';
+  document.getElementById('igVarGenBtn').disabled = true;
+
+  // Obrir modal
+  document.getElementById('ovIgVariant').classList.add('open');
+
+  var spinEl  = document.getElementById('igVarAnalyzeSpin');
+  var txtEl   = document.getElementById('igVarAnalyzeTxt');
+  var ta      = document.getElementById('igVarCustomPrompt');
+  var genBtn  = document.getElementById('igVarGenBtn');
+  var lang    = document.getElementById('cfgLang') ? document.getElementById('cfgLang').value : 'ca';
+  var restName = document.getElementById('restSel')
+    ? (document.getElementById('restSel').options[document.getElementById('restSel').selectedIndex]?.text || '')
+    : '';
+
+  if (post.caption && post.caption.trim().length > 5) {
+    // Tenim text: analitzar amb IA per generar prompt de qualitat
+    spinEl.style.display = 'inline-block';
+    txtEl.textContent = 'Analitzant text per generar el millor prompt...';
+    try {
+      var sysPrompt = 'You are an expert at writing prompts for AI image generation tools like FLUX and Stable Diffusion. Given a food/restaurant Instagram post caption, you extract the key visual elements and write a concise, descriptive English prompt suitable for image generation. Focus on: dish name, presentation style, lighting, mood, setting. Never mention people names or Instagram. Always end with: professional food photography, natural light, editorial style, high quality.';
+      var userP = 'Instagram caption: "' + post.caption.slice(0, 400) + '"';
+      if (restName) userP += '\nRestaurant name: ' + restName;
+      userP += '\n\nWrite a single English image generation prompt (max 100 words). Only the prompt, no explanation.';
+      var resp = await puter.ai.chat([
+        { role: 'system', content: sysPrompt },
+        { role: 'user',   content: userP }
+      ], { model: 'gpt-4o-mini' });
+      var analyzed = (typeof resp === 'string' ? resp : resp?.message?.content || '').trim();
+      if (analyzed) {
+        ta.value = analyzed;
+        _igVariantBasePrompt = analyzed;
+        spinEl.style.display = 'none';
+        txtEl.textContent = 'Prompt generat a partir del text de la publicació';
+      } else { throw new Error('buit'); }
+    } catch(e) {
+      // Fallback: prompt simple sense IA
+      var base = post.caption.replace(/#\S+/g,'').replace(/\s+/g,' ').trim().slice(0,80);
+      if (restName) base += ', served at ' + restName;
+      base += ', professional food photography, natural light, editorial style';
+      ta.value = base;
+      _igVariantBasePrompt = base;
+      spinEl.style.display = 'none';
+      txtEl.textContent = 'Prompt bàsic (sense anàlisi IA)';
+    }
+  } else {
+    // Sense text: prompt genèric
+    var base2 = post.username ? 'food photo inspired by @' + post.username : 'professional food photography, restaurant';
+    if (restName) base2 += ', served at ' + restName;
+    base2 += ', professional food photo, natural light, editorial style';
+    ta.value = base2;
+    _igVariantBasePrompt = base2;
+    spinEl.style.display = 'none';
+    txtEl.textContent = 'Prompt basat en el compte (sense text disponible)';
+  }
+
+  genBtn.disabled = false;
+}
+
+async function generateIgVariant(mode) {
+  var post = _igVariantPost;
+  if (!post) return;
+
+  var prompt = document.getElementById('igVarCustomPrompt').value.trim() || _igVariantBasePrompt;
+
+  if (!prompt) { toast('Escriu una descripció per generar la imatge'); return; }
+
+  var ratio = document.getElementById('igVarRatio')?.value || '1:1';
+  var isStory = ratio === '9:16';
+
+  // Mostrar progress
+  var prog = document.getElementById('igVarProgress');
+  var progTxt = document.getElementById('igVarProgressTxt');
+  prog.classList.add('act');
+  document.getElementById('igVarGenBtn').disabled = true;
+
+  try {
+    progTxt.textContent = 'Generant imatge amb IA...';
+    var result = await generateImageNb(prompt, isStory);
+    var url = result && result.url ? result.url : result;
+    var label = result && result.label ? result.label : 'IA';
+
+    // Pujar al servidor si es base64
+    if (url && url.startsWith('data:')) {
+      progTxt.textContent = 'Pujant al servidor...';
+      try { url = await uploadToServer(url); } catch(e) { console.warn('Upload failed:', e); }
+    }
+
+    // Afegir a la biblioteca
+    var imgData = { url: url, source: 'generated', prompt: prompt, type: isStory ? 'story' : 'post', restId: currentRestId, modelLabel: label };
+    addToLibrary(imgData);
+    await saveLibImagesToFirestore();
+    idbSaveImage(imgData);
+
+    // Tancar modal i navegar a la biblioteca
+    closeOv('ovIgVariant');
+    toast('✓ Imatge generada i afegida a la Biblioteca > Generades IA');
+
+    // Navegar a la biblioteca si no hi estem ja
+    showSec('library', document.querySelector('.ni'));
+    if (typeof switchLibTab === 'function') {
+      var genTab = document.querySelector('.bo-tab:nth-child(3)');
+      if (genTab) switchLibTab('generated', genTab);
+    }
+    renderGenGrid();
+
+  } catch(e) {
+    toast('Error generant: ' + (e.message || 'Error desconegut').slice(0,80));
+  } finally {
+    prog.classList.remove('act');
+    document.getElementById('igVarGenBtn').disabled = false;
+  }
+}
+
+async function analyzeIgPost(btn, post) {
+  btn.disabled = true;
+  btn.textContent = '⏳';
+  try {
+    var caption  = post.caption  || '';
+    var username = post.username || '';
+    var lang = document.getElementById('cfgLang') ? document.getElementById('cfgLang').value : 'ca';
+
+    if (!caption.trim()) {
+      toast('Aquesta publicació no té text. Prova una altra amb descripció.');
+      return;
+    }
+
+    // Sistema: NOMÉS analisi de text, res de visual
+    var sysPrompt = 'Ets un expert en marketing de restauració i xarxes socials. Analitzes el TEXT de publicacions d Instagram i extreues la idea, el missatge i el to comunicatiu per poder replicar-los en altres posts. NO menciones colors, llums, fotografies, imatges ni cap element visual. Respon sempre en l idioma indicat.';
+
+    var userPrompt = 'Analitza el TEXT d aquesta publicació d Instagram';
+    if (username) userPrompt += ' de @' + username;
+    userPrompt += ':\n\n"' + caption.slice(0, 500) + '"\n\n';
+    userPrompt += 'Extreu en 2-3 frases concises: quin producte o moment promou, quin missatge vol transmetre, i quin to usa (directe, emocional, humoristic, informatiu...). ';
+    userPrompt += 'El resultat s usara com a context per generar contingut similar per a un restaurant. ';
+    userPrompt += 'Respon en ' + lang + '. Respon NOMES amb el text de context, sense introduccions ni titols.';
+
+    var puterMessages = [
+      { role: 'system', content: sysPrompt },
+      { role: 'user',   content: userPrompt }
+    ];
+
+    var resp = await puter.ai.chat(puterMessages, { model: 'gpt-4o-mini' });
+    var analysisText = (typeof resp === 'string' ? resp : resp && resp.message && resp.message.content ? resp.message.content : '').trim();
+
+    if (analysisText) {
+      var ctxEl = document.getElementById('ctx');
+      if (ctxEl) {
+        ctxEl.value = analysisText;
+        ctxEl.style.borderColor = 'var(--accent)';
+        setTimeout(function(){ ctxEl.style.borderColor = ''; }, 2000);
+      }
+      toast('✓ Context aplicat des del text de la publicació!');
+    } else {
+      throw new Error('Resposta buida de la IA');
+    }
+  } catch(e) {
+    toast('Error analitzant: ' + (e.message || 'Error desconegut'));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🤖 Analitzar';
+  }
+}
+
+// =====================================================
+// PUBLICADOR AUTOMATIC (CRON) — savePendingPost
+// =====================================================
+async function savePendingPost(post) {
+  var igTok  = localStorage.getItem('sc_ig_token') || '';
+  var igUid  = localStorage.getItem('sc_ig_user_id') || '';
+  if (!igTok || !igUid) return;
+  var imageUrl = post.imageData || '';
+  if (imageUrl.startsWith('data:')) {
+    try {
+      var upRes = await fetch(PUBLISHER_URL, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ secret: CRON_SECRET, action: 'upload_image', imageData: imageUrl })
+      });
+      var upData = await upRes.json();
+      if (upData.success && upData.url) { imageUrl = upData.url; post.imageData = imageUrl; }
+      else { toast("No s'ha pogut pujar la imatge al servidor."); imageUrl = ''; }
+    } catch(e) { imageUrl = ''; }
+  }
+  if (!imageUrl || !imageUrl.startsWith('http')) {
+    toast('Post guardat al calendari pero sense imatge publica. El cron no el podra publicar.');
+    return;
+  }
+  try {
+    var res = await fetch(PUBLISHER_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret: CRON_SECRET, post: {
+        title: post.title||'', type: post.type||'post', date: post.date||'', time: post.time||'',
+        caption: post.caption||'', hashtags: post.hashtags||'', imageData: imageUrl,
+        schedId: post.schedId||'', igToken: igTok, igUserId: igUid, savedAt: new Date().toISOString()
+      }})
+    });
+    var data = await res.json();
+    if (data.success) toast('Afegit al planificador automatic. Es publicara a les ' + (post.time||'?'));
+    else toast('Error al planificador: ' + (data.error||'desconegut'));
+  } catch(e) { toast('Error contactant publisher.php: ' + e.message); }
+}
+
+// =====================================================
+// UPLOAD TAB — Carregar imatges manualment
+// =====================================================
+function handleUploadDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadDropZone').style.borderColor = 'var(--border2)';
+  document.getElementById('uploadDropZone').style.background = 'none';
+  var files = Array.from(e.dataTransfer.files).filter(function(f) { return f.type.startsWith('image/'); });
+  processUploadFiles(files);
+}
+function handleUploadInput(e) {
+  var files = Array.from(e.target.files);
+  e.target.value = '';
+  processUploadFiles(files);
+}
+async function processUploadFiles(files) {
+  if (!files.length) return;
+  var prog = document.getElementById('uploadProgress');
+  prog.style.display = 'block';
+  prog.textContent = 'Processant ' + files.length + ' imatge(s)...';
+  var done = 0;
+  for (var fi = 0; fi < files.length; fi++) {
+    var file = files[fi];
+    prog.textContent = 'Pujant ' + (done + 1) + ' de ' + files.length + '...';
+    var base64 = await new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function(ev) { resolve(ev.target.result); };
+      reader.readAsDataURL(file);
+    });
+    var finalUrl = base64;
+    try { finalUrl = await uploadToServer(base64); } catch(e) { console.warn('Upload failed:', e); }
+    var caption = file.name.replace(/\.[^.]+$/, '');
+    var img = { url: finalUrl, source: 'upload', caption: caption, type: 'post', restId: currentRestId };
+    addToLibrary(img);
+    idbSaveImage(img);
+    done++;
+  }
+  await saveLibImagesToFirestore();
+  prog.style.display = 'none';
+  renderUploadGrid();
+  toast(done + ' imatge(s) afegides i sincronitzades!');
+}
+function renderUploadGrid() {
+  var uploaded = libImages.filter(function(i) { return i.source === 'upload' && i.restId === currentRestId; });
+  var grid = document.getElementById('uploadGrid');
+  if (!uploaded.length) { grid.innerHTML = '<div class="bo-empty"><p>Les imatges carregades apareixeran aqui</p></div>'; return; }
+  grid.innerHTML = uploaded.map(function(img) {
+    var idx = libImages.indexOf(img);
+    var cap = (img.caption||'').slice(0,60);
+    return '<div class="bo-card" onclick="pickOrUseLibImg(' + idx + ')">'
+      + '<div style="position:relative;aspect-ratio:1;background:var(--surface2);overflow:hidden">'
+      + '<img src="' + img.url + '" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.style.opacity=0.2">'
+      + '<button class="zoom-btn" data-url="' + img.url + '" onclick="openImgZoom(this.dataset.url,event)">&#128269;</button>'
+      + '</div>'
+      + '<div class="bo-meta"><div class="bo-src">&#128193; Carregada</div><div class="bo-caption">' + cap + '</div></div>'
+      + '<div class="bo-act"><button class="bo-use" onclick="event.stopPropagation();useLibImage(' + idx + ')">Usar</button>'
+      + '<button data-idx="' + idx + '" onclick="event.stopPropagation();deleteUploadImage(+this.dataset.idx)" style="color:var(--red)">&#128465;</button>'
+      + '</div></div>';
+  }).join('');
+}
+async function deleteUploadImage(libIdx) {
+  if (!confirm('Eliminar aquesta imatge de la biblioteca?')) return;
+  var img = libImages[libIdx];
+  if (img && img.idbId) await idbDeleteImage(img.idbId);
+  libImages.splice(libIdx, 1);
+  renderUploadGrid();
+  toast('Imatge eliminada');
+}
+
+// =====================================================
+// FAVORITS
+// =====================================================
+function updFavBadge() {
+  var b = document.getElementById('favBadge');
+  if (b) b.textContent = favorites.length;
+}
+async function saveFavorite(post) {
+  if (!currentUser || !currentRestId) {
+    toast('❌ No hi ha usuari o restaurant actiu');
+    return;
+  }
+
+  let finalImageUrl = post.imageData || '';
+
+  // Si és imatge generada per IA (base64), la pugem al servidor
+  if (finalImageUrl && finalImageUrl.startsWith('data:')) {
+    toast('⏳ Pujant imatge al servidor...');
+    try {
+      finalImageUrl = await uploadToServer(finalImageUrl);
+      console.log('URL rebuda del servidor:', finalImageUrl);
+    } catch (e) {
+      console.error('Error pujant imatge:', e);
+      toast('⚠️ No s\'ha pogut pujar la imatge. El text es guardarà igualment.');
+      finalImageUrl = '';
+    }
+  }
+
+  const fav = {
+    id: 'fav_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+    title: post.title || 'Sense títol',
+    type: post.type || 'post',
+    caption: post.caption || '',
+    hashtags: post.hashtags || '',
+    imageData: finalImageUrl,           // ← Aquí va la URL del teu servidor
+    emoji: post.emoji || '',
+    source: 'manual',
+    savedAt: new Date().toISOString(),
+    restId: currentRestId
+  };
+
+  favorites.push(fav);
+  updFavBadge();
+
+  try {
+    await db.collection('users').doc(currentUser.uid)
+      .collection('restaurants').doc(currentRestId)
+      .update({ favorites: favorites });
+
+    toast(finalImageUrl ? '✅ Favorit guardat amb imatge' : '✅ Favorit guardat (sense imatge)');
+    renderFavorites();
+  } catch (e) {
+    console.error('Error Firebase:', e);
+    toast('❌ Error guardant favorit a Firebase');
+  }
+}
+async function saveFavoritesToFirestore(restId, favSnapshot) {
+  var rid = restId || currentRestId;
+  var favs = favSnapshot || favorites;
+  if (!currentUser || !rid) return;
+  try { await db.collection('users').doc(currentUser.uid).collection('restaurants').doc(rid).update({ favorites: favs }); }
+  catch(e) { console.error('saveFavoritesToFirestore error:', e); toast('Error desant el favorit: ' + e.message.slice(0,60)); }
+}
+async function deleteFavorite(favId) {
+  if (!confirm('Eliminar aquest favorit?')) return;
+  favorites = favorites.filter(function(f) { return f.id !== favId; });
+  updFavBadge();
+  await saveFavoritesToFirestore();
+  renderFavorites();
+  toast('Favorit eliminat');
+}
+function renderFavorites() {
+  var grid = document.getElementById('favGrid');
+  if (!grid) return;
+  var filterType = document.getElementById('favFilterType') ? document.getElementById('favFilterType').value : 'all';
+  var filtered = favorites.filter(function(f) { return filterType === 'all' || f.type === filterType; });
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="ei">&#11088;</span><p>'
+      + (favorites.length ? 'Cap favorit amb aquest filtre.' : 'Aun no hay favoritos. Los posts publicados se anadiran automaticamente.')
+      + '</p></div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(function(f) {
+    var srcLabel = f.source === 'published'
+      ? '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(126,201,142,.15);color:var(--green)">🔍; Publicat</span>'
+      : '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(167,139,250,.15);color:var(--accent)">&#9733; Guardat</span>';
+    var imgHtml = f.imageData
+      ? '<img src="' + f.imageData + '" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">'
+      : '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:36px">' + (f.emoji||'&#128247;') + '</div>';
+    var dateStr = f.publishedAt ? new Date(f.publishedAt).toLocaleDateString('es-ES', {day:'2-digit',month:'short',year:'numeric'}) : '';
+    return '<div class="pcard">'
+      + '<div class="cprev ' + (f.type==='story'?'story':'') + '" style="position:relative;overflow:hidden">' + imgHtml
+      + (f.imageData ? '<button class="zoom-btn" data-url="' + f.imageData + '" onclick="openImgZoom(this.dataset.url,event)">&#128269;</button>' : '')
+      + '</div>'
+      + '<div class="cbody">'
+      + '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">'
+      + '<span class="tbadge ' + f.type + '">' + (f.type==='post'?'&#9633; Post':'&#9633; Story') + '</span>' + srcLabel
+      + '</div>'
+      + '<div style="font-size:14px;font-weight:500;margin-bottom:4px">' + (f.title||'Sin titulo') + '</div>'
+      + '<div class="ccap">' + (f.caption||'') + '</div>'
+      + (dateStr ? '<div style="font-size:11px;color:var(--text3);margin-top:6px">&#128197; ' + dateStr + '</div>' : '')
+      + '</div>'
+      + '<div class="cact">'
+      + '<button class="bsel" data-fid="' + f.id + '" onclick="reuseFromFavorite(this.dataset.fid)">Reutilizar</button>'
+      + '<button class="bs" data-fid="' + f.id + '" onclick="openEditFav(this.dataset.fid)" style="flex:0;padding:7px 10px">&#9999;</button>'
+      + '<button class="bs" data-fid="' + f.id + '" onclick="deleteFavorite(this.dataset.fid)" style="flex:0;padding:7px 10px;color:var(--red);border-color:rgba(232,126,126,.3)">&#128465;</button>'
+      + '</div></div>';
+  }).join('');
+}
+// ── Toggle secció Inspiració IG ────────────────────────────────────────────
+var _igOpen = true;
+function toggleIgSection() {
+  _igOpen = !_igOpen;
+  var body  = document.getElementById('igSearchBody');
+  var arrow = document.getElementById('igToggleArrow');
+  if (body)  body.style.display  = _igOpen ? '' : 'none';
+  if (arrow) arrow.style.transform = _igOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
+
+// ── Guardar canvis de la proposta sense programar ───────────────────────────
+
 
 window.onload = initApp;
 </script>
