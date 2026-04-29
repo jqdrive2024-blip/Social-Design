@@ -672,7 +672,7 @@ select option{background:var(--surface2)}
         <div class="bo-gen-area">
           <h3 style="font-size:15px;font-weight:500;margin-bottom:12px">Generar imatge amb IA</h3>
           <div style="display:flex;flex-direction:column;gap:10px">
-            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: plat de bravas crujients amb salsa especial de la casa, fotografia professional de menjar..."></textarea>
+            <textarea id="genImgPrompt" rows="2" placeholder="Descriu la imatge: logotip minimalista en blanc i negre, disseny editorial de revista, identitat visual corporativa moderna..."></textarea>
             <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
               <select id="genImgRatio" style="padding:8px 12px;font-size:13px;width:160px">
                 <option value="1:1">Post (1:1)</option>
@@ -3964,7 +3964,7 @@ async function openIgVariantModal(post, imgEl) {
     spinEl.style.display = 'inline-block';
     txtEl.textContent = 'Analitzant text per generar el millor prompt...';
     try {
-      var sysPrompt = 'You are an expert at writing prompts for AI image generation tools like FLUX and Stable Diffusion. Given a food/restaurant Instagram post caption, you extract the key visual elements and write a concise, descriptive English prompt suitable for image generation. Focus on: dish name, presentation style, lighting, mood, setting. Never mention people names or Instagram. Always end with: professional food photography, natural light, editorial style, high quality.';
+      var sysPrompt = 'You are an expert at writing prompts for AI image generation tools like FLUX and Stable Diffusion. Given a design studio or creative agency Instagram post caption, you extract the key visual elements and write a concise, descriptive English prompt suitable for image generation. Focus on: design style, visual composition, color palette, mood, typography references, and creative concept. Never mention people names or Instagram. Always end with: professional graphic design, clean composition, editorial style, high quality.';
       var userP = 'Instagram caption: "' + post.caption.slice(0, 400) + '"';
       if (restName) userP += '\nRestaurant name: ' + restName;
       userP += '\n\nWrite a single English image generation prompt (max 100 words). Only the prompt, no explanation.';
@@ -3983,7 +3983,7 @@ async function openIgVariantModal(post, imgEl) {
       // Fallback: prompt simple sense IA
       var base = post.caption.replace(/#\S+/g,'').replace(/\s+/g,' ').trim().slice(0,80);
       if (restName) base += ', served at ' + restName;
-      base += ', professional food photography, natural light, editorial style';
+      base += ', professional graphic design, clean composition, editorial style';
       ta.value = base;
       _igVariantBasePrompt = base;
       spinEl.style.display = 'none';
@@ -3991,9 +3991,9 @@ async function openIgVariantModal(post, imgEl) {
     }
   } else {
     // Sense text: prompt genèric
-    var base2 = post.username ? 'food photo inspired by @' + post.username : 'professional food photography, restaurant';
-    if (restName) base2 += ', served at ' + restName;
-    base2 += ', professional food photo, natural light, editorial style';
+    var base2 = post.username ? 'design work inspired by @' + post.username : 'professional graphic design, creative studio';
+    if (clientName) base2 += ', for ' + clientName;
+    base2 += ', professional design composition, editorial style';
     ta.value = base2;
     _igVariantBasePrompt = base2;
     spinEl.style.display = 'none';
@@ -4072,9 +4072,9 @@ async function analyzeIgPost(btn, post) {
     }
 
     // Sistema: NOMÉS analisi de text, res de visual
-    var sysPrompt = 'Ets un expert en marketing de restauració i xarxes socials. Analitzes el TEXT de publicacions d Instagram i extreues la idea, el missatge i el to comunicatiu per poder replicar-los en altres posts. NO menciones colors, llums, fotografies, imatges ni cap element visual. Respon sempre en l idioma indicat.';
+    var sysPrompt = 'Ets un expert en màrqueting creatiu i xarxes socials per a estudis de disseny, agències creatives i marques tecnològiques. Analitzes el TEXT de publicacions d Instagram i extreues la idea, el missatge i el to comunicatiu per poder replicar-los en altres posts de disseny. NO menciones colors, llums, fotografies, imatges ni cap element visual. Respon sempre en l idioma indicat.';
 
-    var userPrompt = 'Analitza el TEXT d aquesta publicació d Instagram';
+    var userPrompt = 'Analitza el TEXT d aquesta publicació d Instagram d un estudi de disseny o agència creativa';
     if (username) userPrompt += ' de @' + username;
     userPrompt += ':\n\n"' + caption.slice(0, 500) + '"\n\n';
     userPrompt += 'Extreu en 2-3 frases concises: quin producte o moment promou, quin missatge vol transmetre, i quin to usa (directe, emocional, humoristic, informatiu...). ';
