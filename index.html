@@ -317,6 +317,15 @@ select option{background:var(--surface2)}
 .ig-post-acts button.var-btn:hover{background:var(--green);color:#fff}
 .ig-search-empty{text-align:center;padding:32px;color:var(--text3);font-size:13px;grid-column:1/-1}
 .ig-search-spin{display:flex;align-items:center;justify-content:center;gap:10px;padding:24px;color:var(--text3);font-size:13px;grid-column:1/-1}
+.ig-variant-modal .mv-opt{display:flex;flex-direction:column;gap:10px;margin:12px 0}
+.ig-variant-modal .mv-opt button{width:100%;padding:12px 16px;border-radius:var(--r);font-size:14px;font-family:inherit;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;transition:all .15s;border:1px solid var(--border2);background:var(--surface2);color:var(--text)}
+.ig-variant-modal .mv-opt button:hover{border-color:var(--accent);background:var(--accent-bg)}
+.ig-variant-modal .mv-opt button span.mv-icon{font-size:22px;flex-shrink:0}
+.ig-variant-modal .mv-opt button .mv-desc{display:flex;flex-direction:column;gap:2px}
+.ig-variant-modal .mv-opt button .mv-title{font-weight:500}
+.ig-variant-modal .mv-opt button .mv-sub{font-size:12px;color:var(--text3)}
+.ig-var-prog{display:none;padding:16px;background:var(--surface2);border-radius:var(--r);text-align:center;font-size:13px;color:var(--text2);gap:8px;align-items:center;justify-content:center}
+.ig-var-prog.act{display:flex}
 </style>
 </head>
 <body>
@@ -1063,6 +1072,45 @@ select option{background:var(--surface2)}
     <div class="mact">
       <button class="bs" onclick="closeOv('ovEditFav')">Cancelar</button>
       <button class="bp" onclick="confirmEditFav()">&#128190; Guardar canvis</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Modal Variant IG -->
+<div class="ov ig-variant-modal" id="ovIgVariant" onclick="closeOvIf(event,'ovIgVariant')">
+  <div class="modal" style="width:440px;max-width:95vw">
+    <h3>✨ Generar variant</h3>
+    <p class="msub" id="ovIgVariantSub">Genera una imatge inspirada en aquesta publicació</p>
+
+    <div style="display:flex;gap:12px;margin:14px 0;align-items:flex-start">
+      <div id="igVarPreviewWrap" style="border-radius:var(--rs);overflow:hidden;width:100px;height:100px;background:var(--surface2);flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        <img id="igVarPreview" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:none">
+      </div>
+      <div style="flex:1;min-width:0">
+        <div id="igVarAnalyzeStatus" style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <div class="ispin" id="igVarAnalyzeSpin"></div>
+          <span id="igVarAnalyzeTxt">Analitzant publicació...</span>
+        </div>
+        <textarea id="igVarCustomPrompt" rows="4" style="width:100%;resize:vertical;font-size:13px;box-sizing:border-box" placeholder="Prompt per generar la imatge..."></textarea>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px">
+      <label style="font-size:12px;color:var(--text3);white-space:nowrap">Format:</label>
+      <select id="igVarRatio" style="flex:1;padding:8px;font-size:13px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--rs);font-family:inherit">
+        <option value="1:1">Post (1:1)</option>
+        <option value="9:16">Story (9:16)</option>
+      </select>
+    </div>
+
+    <div class="ig-var-prog" id="igVarProgress">
+      <div class="ispin"></div><span id="igVarProgressTxt">Generant imatge...</span>
+    </div>
+
+    <div class="mact" style="margin-top:4px">
+      <button class="bs" onclick="closeOv('ovIgVariant')">Cancel·lar</button>
+      <button class="bp" id="igVarGenBtn" onclick="generateIgVariant('go')" disabled style="gap:6px">🎨 Generar variant</button>
     </div>
   </div>
 </div>
