@@ -460,14 +460,41 @@ select option{background:var(--surface2)}
       <!-- CERCA DE PUBLICACIONS D'INSTAGRAM -->
       <div class="ig-search-box" id="igSearchBox">
         <h3 onclick="toggleIgSection()" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between">
-          <span>&#128269; Inspiració d'Instagram</span>
+          <span>🔍 Inspiració d'Instagram</span>
           <span id="igToggleArrow" style="font-size:12px;color:var(--text3);transition:transform .25s">▼</span>
         </h3>
         <div id="igSearchBody">
-          <p style="margin-top:8px">Cerca publicacions per temàtica per inspirar-te. Clica "Analitzar" per omplir automàticament el context.</p>
-          <div class="ig-search-row">
-            <input type="text" id="igSearchQuery" placeholder="Ex: bravas, paella, hamburguesa, sushi..." onkeydown="if(event.key==='Enter')searchIgPosts()">
-            <button class="bp" onclick="searchIgPosts()" id="igSearchBtn" style="padding:10px 18px">🔍 Cercar</button>
+          <p style="margin-top:8px">Cerca per temàtica o per compte per inspirar-te. Clica "Analitzar" per omplir automàticament el context.</p>
+
+          <!-- Toggle Hashtag / Compte -->
+          <div style="display:flex;gap:0;margin-bottom:12px;border:1px solid var(--border2);border-radius:var(--rs);overflow:hidden;width:fit-content">
+            <button id="igModeHashtag" onclick="setIgMode('hashtag')" style="padding:6px 16px;font-size:12px;font-family:inherit;cursor:pointer;border:none;border-right:1px solid var(--border2);background:var(--accent);color:#fff;font-weight:500"># Temàtica</button>
+            <button id="igModeAccount" onclick="setIgMode('account')" style="padding:6px 16px;font-size:12px;font-family:inherit;cursor:pointer;border:none;background:var(--surface2);color:var(--text3)">👤 Compte</button>
+          </div>
+
+          <!-- Mode Hashtag -->
+          <div id="igModeHashtagPanel">
+            <div class="ig-search-row">
+              <input type="text" id="igSearchQuery" placeholder="Ex: branding, logo, packaging, disseny..." onkeydown="if(event.key==='Enter')searchIgPosts()">
+              <button class="bp" onclick="searchIgPosts()" id="igSearchBtn" style="padding:10px 18px">🔍 Cercar</button>
+            </div>
+          </div>
+
+          <!-- Mode Compte -->
+          <div id="igModeAccountPanel" style="display:none">
+            <div class="ig-search-row">
+              <input type="text" id="igAccountQuery" placeholder="Ex: pentagram, sagmeister, wieden_kennedy (sense @)" onkeydown="if(event.key==='Enter')searchIgByAccount()">
+              <button class="bp" onclick="searchIgByAccount()" id="igAccountBtn" style="padding:10px 18px">🔍 Cercar</button>
+            </div>
+          </div>
+
+          <!-- Filtre likes comú -->
+          <div style="display:flex;align-items:center;gap:12px;margin-top:8px;flex-wrap:wrap">
+            <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3)">
+              <label for="igMinLikes" style="white-space:nowrap">❤️ Mín. likes:</label>
+              <input type="number" id="igMinLikes" min="0" step="100" value="0" style="width:90px;padding:6px 8px;font-size:12px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);border-radius:var(--rs);font-family:inherit" placeholder="0 = tots">
+            </div>
+            <div id="igApifyStatus" style="font-size:11px;color:var(--text3);display:flex;align-items:center;gap:5px"></div>
           </div>
           <div id="igSearchResults" class="ig-results-grid" style="display:none"></div>
         </div>
@@ -714,6 +741,11 @@ select option{background:var(--surface2)}
               <label>Serper.dev API Key <span style="font-weight:400;color:var(--green);font-size:11px">(recomanat)</span></label>
               <input type="password" id="cfgSerperKey" placeholder="clau..." autocomplete="off">
               <span style="font-size:11px;color:var(--text3);margin-top:3px">Per cercar inspiració a Instagram · <a href="https://serper.dev" target="_blank" style="color:var(--accent)">serper.dev</a> · 2500 cerques gratuïtes/mes · Registre en 1 minut</span>
+            </div>
+            <div class="fg">
+              <label>Apify API Key <span style="font-weight:400;color:var(--green);font-size:11px">(recomanat · likes reals)</span></label>
+              <input type="password" id="cfgApifyKey" placeholder="apify_api_xxxx..." autocomplete="off">
+              <span style="font-size:11px;color:var(--text3);margin-top:3px">Cerca Instagram amb likes reals · <a href="https://apify.com" target="_blank" style="color:var(--accent)">apify.com</a> · $5 credit gratis/mes (~300 cerques) · Sense targeta</span>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:4px">
               <button class="bp" style="width:fit-content" onclick="saveCfg()">Guardar</button>
@@ -2429,6 +2461,10 @@ async function loadRestaurant(id) {
   document.getElementById('cfgFreq').value = d.freq||'Diaria';
   document.getElementById('cfgTags').value = d.tags||'';
   document.getElementById('cfgCTA').value = d.cta||'';
+  const _serperVal = localStorage.getItem('sc_serper_key') || '';
+  if (_serperVal && document.getElementById('cfgSerperKey')) document.getElementById('cfgSerperKey').value = _serperVal;
+  const _apifyVal = localStorage.getItem('sc_apify_key') || '';
+  if (_apifyVal && document.getElementById('cfgApifyKey')) document.getElementById('cfgApifyKey').value = _apifyVal;
   // Pre-emplenar camps de la librería
   const igEl = document.getElementById('igUsername');
   if (igEl && d.ig) igEl.value = d.ig;
@@ -2509,6 +2545,8 @@ async function saveCfg() {
   if (!currentUser||!currentRestId) return;
   const serperKey2 = document.getElementById('cfgSerperKey')?.value?.trim();
   if (serperKey2 !== undefined) localStorage.setItem('sc_serper_key', serperKey2);
+  const apifyKey = document.getElementById('cfgApifyKey')?.value?.trim();
+  if (apifyKey !== undefined) localStorage.setItem('sc_apify_key', apifyKey);
   const data = {
     name:document.getElementById('cfgName').value,
     cuisine:document.getElementById('cfgCuisine').value,
@@ -3390,37 +3428,179 @@ function changeRestDrawer() {
 // Mobile sync is handled inline in the original functions below
 
 
+function setIgMode(mode) {
+  var hashPanel = document.getElementById('igModeHashtagPanel');
+  var accPanel  = document.getElementById('igModeAccountPanel');
+  var hashBtn   = document.getElementById('igModeHashtag');
+  var accBtn    = document.getElementById('igModeAccount');
+  var results   = document.getElementById('igSearchResults');
+  if (results) { results.style.display = 'none'; results.innerHTML = ''; }
+  if (mode === 'hashtag') {
+    hashPanel.style.display = 'block'; accPanel.style.display = 'none';
+    hashBtn.style.background = 'var(--accent)'; hashBtn.style.color = '#fff'; hashBtn.style.fontWeight = '500';
+    accBtn.style.background = 'var(--surface2)'; accBtn.style.color = 'var(--text3)'; accBtn.style.fontWeight = 'normal';
+  } else {
+    hashPanel.style.display = 'none'; accPanel.style.display = 'block';
+    accBtn.style.background = 'var(--accent)'; accBtn.style.color = '#fff'; accBtn.style.fontWeight = '500';
+    hashBtn.style.background = 'var(--surface2)'; hashBtn.style.color = 'var(--text3)'; hashBtn.style.fontWeight = 'normal';
+  }
+}
+
+// ── Cerca per compte d'Instagram via Apify ────────────────────────────────────
+async function searchIgByAccount() {
+  var raw = (document.getElementById('igAccountQuery').value || '').trim();
+  var username = raw.replace(/^@/, '').replace(/[^a-zA-Z0-9._]/g, '').toLowerCase();
+  if (!username) { toast('Entra un nom de compte (sense @)'); document.getElementById('igAccountQuery').focus(); return; }
+  var minLikes = parseInt(document.getElementById('igMinLikes')?.value || '0') || 0;
+  var apifyKey = localStorage.getItem('sc_apify_key') || '';
+  if (!apifyKey) { toast('Cal una Apify API Key a Configuració per cercar per compte'); return; }
+
+  var btn = document.getElementById('igAccountBtn');
+  var resultsDiv = document.getElementById('igSearchResults');
+  var statusEl = document.getElementById('igApifyStatus');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Cercant...';
+  resultsDiv.style.display = 'grid';
+  resultsDiv.innerHTML = '<div class="ig-search-spin"><div class="ispin"></div><span>Carregant publicacions de @' + username + '...</span></div>';
+  if (statusEl) statusEl.innerHTML = '<div class="ispin" style="width:10px;height:10px;border-width:1.5px"></div> Apify...';
+
+  try {
+    var APIFY_BASE = 'https://api.apify.com/v2';
+    var startRes = await fetch(APIFY_BASE + '/acts/apify~instagram-scraper/runs?token=' + encodeURIComponent(apifyKey), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        directUrls: ['https://www.instagram.com/' + username + '/'],
+        resultsType: 'posts',
+        resultsLimit: 20,
+        addParentData: false
+      })
+    });
+    if (!startRes.ok) {
+      var errD = await startRes.json().catch(function(){ return {}; });
+      throw new Error(errD.error && errD.error.message ? errD.error.message : 'Apify HTTP ' + startRes.status);
+    }
+    var startData = await startRes.json();
+    var runId = startData.data && startData.data.id;
+    if (!runId) throw new Error(startData.error && startData.error.message ? startData.error.message : 'Sense run ID');
+
+    // Polling (compte per compte es mes rapid, max 60s)
+    var maxWait = 60000;
+    var waited = 0;
+    var interval = 3000;
+    while (waited < maxWait) {
+      await new Promise(function(r){ setTimeout(r, interval); });
+      waited += interval;
+      resultsDiv.innerHTML = '<div class="ig-search-spin"><div class="ispin"></div><span>Apify carregant @' + username + '... (' + Math.round(waited/1000) + 's)</span></div>';
+
+      var pollRes = await fetch(APIFY_BASE + '/actor-runs/' + runId + '?token=' + encodeURIComponent(apifyKey));
+      var pollData = await pollRes.json();
+      var status = pollData.data && pollData.data.status;
+
+      if (status === 'SUCCEEDED') {
+        var itemsRes = await fetch(APIFY_BASE + '/actor-runs/' + runId + '/dataset/items?token=' + encodeURIComponent(apifyKey) + '&limit=25');
+        var items = await itemsRes.json();
+        if (!Array.isArray(items) || !items.length) {
+          resultsDiv.innerHTML = "<div class=\"ig-search-empty\">No s'han trobat publicacions per @" + username + '</div>';
+          if (statusEl) statusEl.innerHTML = '';
+          return;
+        }
+        var posts = items.map(function(p) {
+          return {
+            postUrl:   p.url || p.link || (p.shortCode ? 'https://www.instagram.com/p/' + p.shortCode + '/' : ''),
+            imageUrl:  p.displayUrl || p.imageUrl || p.thumbnailUrl || '',
+            username:  p.ownerUsername || p.username || username,
+            avatar:    p.ownerProfilePicUrl || '',
+            likes:     p.likesCount || 0,
+            caption:   (p.caption || '').slice(0, 200),
+            shortcode: p.shortCode || p.code || '',
+            source:    'apify_account'
+          };
+        });
+        // Filtrar per minLikes i ordenar
+        if (minLikes > 0) posts = posts.filter(function(p){ return p.likes >= minLikes; });
+        posts.sort(function(a, b){ return b.likes - a.likes; });
+
+        if (!posts.length) {
+          resultsDiv.innerHTML = '<div class="ig-search-empty">Cap publicació de @' + username + ' amb ' + minLikes + '+ likes. Prova amb un valor menor.</div>';
+        } else {
+          renderIgSearchResults(posts, username);
+          if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✓ @' + username + ' · ' + posts.length + ' posts' + (minLikes > 0 ? ' · ❤️ ' + minLikes + '+' : '') + '</span>';
+          toast('✓ ' + posts.length + ' publicacions de @' + username + ' ordenades per likes');
+        }
+        return;
+      } else if (['FAILED','ABORTED','TIMED-OUT'].indexOf(status) !== -1) {
+        throw new Error('Apify: run ' + status);
+      }
+    }
+    throw new Error('Timeout (>60s). Prova de nou.');
+  } catch(e) {
+    resultsDiv.innerHTML = '<div class="ig-search-empty">❌ ' + e.message + '</div>';
+    if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">' + e.message.slice(0,50) + '</span>';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔍 Cercar';
+  }
+}
+
 async function searchIgPosts() {
   var query = (document.getElementById('igSearchQuery').value || '').trim();
-  if (!query) { toast('Entra una temàtica per cercar'); document.getElementById('igSearchQuery').focus(); return; }
+  if (!query) { toast('Entra una temat\u00edca per cercar'); document.getElementById('igSearchQuery').focus(); return; }
+  if (query.startsWith('@') || query.includes('.')) {
+    toast("⚠️ La cerca és per temàtica, no per comptes. Ex: bravas o paella. Per imatges d'un compte, usa Biblioteca > Instagram");
+    return;
+  }
+  var minLikes = parseInt(document.getElementById('igMinLikes')?.value || '0') || 0;
 
   var btn = document.getElementById('igSearchBtn');
   var resultsDiv = document.getElementById('igSearchResults');
+  var statusEl = document.getElementById('igApifyStatus');
   btn.disabled = true;
   btn.innerHTML = '⏳ Cercant...';
   resultsDiv.style.display = 'grid';
   resultsDiv.innerHTML = '<div class="ig-search-spin"><div class="ispin"></div><span>Cercant publicacions de "' + query + '"...</span></div>';
 
   try {
-    // ── Mètode 1: Instagram Graph API (compte Business/Creator connectat) ────
+    var apifyKey = localStorage.getItem('sc_apify_key') || '';
+
+    // ── Mètode 1: Apify Instagram Hashtag Scraper (likes reals) ──────────────
+    if (apifyKey) {
+      if (statusEl) statusEl.innerHTML = '<div class="ispin" style="width:10px;height:10px;border-width:1.5px"></div> Apify cercant...';
+      try {
+        var apifyPosts = await searchWithApify(query, apifyKey, minLikes);
+        if (apifyPosts && apifyPosts.length > 0) {
+          if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✓ Apify · ' + apifyPosts.length + ' resultats</span>';
+          renderIgSearchResults(apifyPosts, query);
+          toast('✓ ' + apifyPosts.length + ' publicacions amb likes reals');
+          return;
+        }
+      } catch(apErr) {
+        console.warn('Apify error:', apErr.message);
+        if (statusEl) statusEl.innerHTML = '<span style="color:var(--red)">Apify: ' + apErr.message.slice(0,40) + '</span>';
+      }
+    }
+
+    // ── Mètode 2: Instagram Graph API (compte Business/Creator) ──────────────
     var tok = localStorage.getItem('sc_ig_token') || igToken || '';
     var uid = localStorage.getItem('sc_ig_user_id') || igUserId || '';
     if (tok && uid) {
       try {
         var igPosts = await searchIgHashtag(query, tok, uid);
         if (igPosts && igPosts.length > 0) {
-          renderIgSearchResults(igPosts, query);
-          toast('🔍; ' + igPosts.length + " publicacions d'Instagram trobades per \"" + query + '"');
-          fetchLikesInBackground(igPosts);
+          var filtered = minLikes > 0 ? igPosts.filter(function(p){ return (p.likes||0) >= minLikes; }) : igPosts;
+          if (statusEl) statusEl.innerHTML = '<span style="color:var(--green)">✓ IG API · ' + filtered.length + ' resultats</span>';
+          renderIgSearchResults(filtered, query);
+          toast('✓ ' + filtered.length + ' publicacions d\'Instagram');
+          fetchLikesInBackground(filtered);
           return;
         }
       } catch(igErr) {
-        // 400 = compte personal, 403 = permisos insuficients → fallback silenciós
-        console.warn('IG Graph API no disponible (' + igErr.message + '), usant scraper...');
+        console.warn('IG Graph API no disponible:', igErr.message);
       }
     }
 
-    // ── Mètode 2: Scraper PHP (Picuki + Google + Bing) ───────────────────────
+    // ── Mètode 3: Scraper PHP (fallback sense likes) ──────────────────────────
+    if (statusEl) statusEl.innerHTML = 'Usant scraper...';
     var serperKey = localStorage.getItem('sc_serper_key') || '';
     var searchUrl = SCRAPER_URL + '?action=hashtag&query=' + encodeURIComponent(query);
     if (serperKey) searchUrl += '&serper_key=' + encodeURIComponent(serperKey);
@@ -3429,12 +3609,17 @@ async function searchIgPosts() {
     var data = await res.json();
 
     if (!data.success || !data.posts || !data.posts.length) {
-      resultsDiv.innerHTML = '<div class="ig-search-empty">&#128247; ' + (data.error || "No s'han trobat publicacions. Prova amb un terme diferent.") + '</div>';
+      if (!apifyKey) {
+        resultsDiv.innerHTML = '<div class="ig-search-empty">&#128247; ' + (data.error || "No s'han trobat publicacions.") + '<br><br><small>Per obtenir resultats amb likes reals, afegeix la teva <strong>Apify API Key</strong> a Configuraci\u00f3 (gratis, $5/mes).</small></div>';
+      } else {
+        resultsDiv.innerHTML = '<div class="ig-search-empty">&#128247; ' + (data.error || "No s'han trobat publicacions. Prova amb un terme diferent.") + '</div>';
+      }
       return;
     }
 
+    if (statusEl) statusEl.innerHTML = minLikes > 0 ? '<span style="color:var(--text3)">Scraper (sense filtre likes)</span>' : '';
     renderIgSearchResults(data.posts, query);
-    toast('🔍; ' + data.posts.length + ' publicacions trobades per "' + query + '"');
+    toast('✓ ' + data.posts.length + ' publicacions (sense dades de likes)');
     fetchLikesInBackground(data.posts);
 
   } catch(e) {
@@ -3445,7 +3630,71 @@ async function searchIgPosts() {
   }
 }
 
-// ── Cerca via Instagram Graph API ────────────────────────────────────────────
+
+// ── Cerca via Apify Instagram Hashtag Scraper ─────────────────────────────────
+async function searchWithApify(query, apiKey, minLikes) {
+  var APIFY_BASE = 'https://api.apify.com/v2';
+  var hashtag = query.trim().replace(/^[@#]+/, '').replace(/[^a-zA-Z0-9_]/g, '').toLowerCase();
+  if (!hashtag) throw new Error('Hashtag invalid. Usa paraules sense @, # ni punts.');
+
+  var startRes = await fetch(APIFY_BASE + '/acts/apify~instagram-hashtag-scraper/runs?token=' + encodeURIComponent(apiKey), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hashtags: [hashtag], resultsLimit: 15, scrapeType: 'posts' })
+  });
+  if (!startRes.ok) {
+    var errData = await startRes.json().catch(function(){ return {}; });
+    throw new Error(errData.error && errData.error.message ? errData.error.message : 'Apify HTTP ' + startRes.status);
+  }
+  var startData = await startRes.json();
+  var runId = startData.data && startData.data.id;
+  if (!runId) throw new Error(startData.error && startData.error.message ? startData.error.message : 'Sense run ID');
+
+  // Polling fins que acabi (max 90 seg)
+  var maxWait = 90000;
+  var waited = 0;
+  var interval = 4000;
+  var statusDiv = document.getElementById('igSearchResults');
+
+  while (waited < maxWait) {
+    await new Promise(function(r){ setTimeout(r, interval); });
+    waited += interval;
+    if (statusDiv) statusDiv.innerHTML = '<div class="ig-search-spin"><div class="ispin"></div><span>Apify processant... (' + Math.round(waited/1000) + 's) Pot trigar 30-60 seg la primera vegada</span></div>';
+
+    var pollRes = await fetch(APIFY_BASE + '/actor-runs/' + runId + '?token=' + encodeURIComponent(apiKey));
+    var pollData = await pollRes.json();
+    var status = pollData.data && pollData.data.status;
+
+    if (status === 'SUCCEEDED') {
+      var itemsRes = await fetch(APIFY_BASE + '/actor-runs/' + runId + '/dataset/items?token=' + encodeURIComponent(apiKey) + '&limit=25');
+      var items = await itemsRes.json();
+      if (!Array.isArray(items) || !items.length) return [];
+
+      var posts = items.map(function(p) {
+        return {
+          postUrl:   p.url || p.link || (p.shortCode ? 'https://www.instagram.com/p/' + p.shortCode + '/' : ''),
+          imageUrl:  p.displayUrl || p.imageUrl || p.thumbnailUrl || '',
+          username:  p.ownerUsername || p.username || '',
+          avatar:    p.ownerProfilePicUrl || '',
+          likes:     p.likesCount || 0,
+          caption:   (p.caption || '').slice(0, 200),
+          shortcode: p.shortCode || p.code || '',
+          source:    'apify'
+        };
+      });
+
+      if (minLikes > 0) posts = posts.filter(function(p){ return p.likes >= minLikes; });
+      posts.sort(function(a, b){ return b.likes - a.likes; });
+      return posts;
+
+    } else if (['FAILED','ABORTED','TIMED-OUT'].indexOf(status) !== -1) {
+      throw new Error('Apify: run ' + status);
+    }
+  }
+  throw new Error('Apify timeout (>90s). Prova de nou.');
+}
+
+
 async function searchIgHashtag(query, token, userId) {
   var BASE = 'https://graph.facebook.com/v21.0';
   var hashtag = query.trim().replace(/^#/, '').replace(/\s+/g, '').toLowerCase();
